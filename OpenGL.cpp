@@ -644,18 +644,11 @@ void OpenGL::useProgram( GLuint program )
  * @param View The 4x4 view transformation matrix (usually the camera matrix).
  * @param useUnitSuffix Wheter attach light index as suffix to shader uniform variables.
  */
-void OpenGL::setLighting( const Light& light, const mat44& View, bool useUnitSuffix )
+void OpenGL::setLighting( const Light& light, const mat44& View )
 {
 	string lightSpaceMatrixStr = "LightSpaceMatrix";
 	string lightPositionStr = "lightPosition";
 	string lightColorStr = "lightColor";
-	
-	if( useUnitSuffix )		// Does the shader have light names with suffix corresponding to unit?
-	{
-		lightSpaceMatrixStr += to_string( light.getUnit() );
-		lightPositionStr += to_string( light.getUnit() );
-		lightColorStr += to_string( light.getUnit() );
-	}
 	
 	// Send light space matrix transform if shaders have corresponding receptor.
 	int lsm_location = glGetUniformLocation( renderingProgram, lightSpaceMatrixStr.c_str() );

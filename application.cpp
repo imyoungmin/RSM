@@ -44,8 +44,7 @@ float gRetinaRatio;						// How many screen dots exist per OpenGL pixel.
 OpenGL ogl;								// Initialize application OpenGL.
 
 // Lights.
-vector<Light> gLights;					// Light source objects.
-int gLightsCount = 0;
+Light gLight;							// Light source object.
 
 // Frame rate variables and functions.
 static const int NUM_FPS_SAMPLES = 64;
@@ -297,7 +296,7 @@ void renderScene( const mat44& Projection, const mat44& View, const mat44& Model
 int main( int argc, const char * argv[] )
 {
 	gPointOfInterest = { 0, 3, 0 };		// Camera controls globals.
-	gEye = { 0, 3, 7 };
+	gEye = { 0, 3, 8 };
 	gUp = Tx::Y_AXIS;
 	
 	gLocked = false;					// Track if mouse button is pressed down.
@@ -371,47 +370,78 @@ int main( int argc, const char * argv[] )
 	float lNearPlane = 0.01f, lFarPlane = 20.0f;									// Setting up the light projection matrix.
 	float lSide = 15.0f;
 	mat44 LightProjection = Tx::ortographic( -lSide, lSide, -lSide, lSide, lNearPlane, lFarPlane );
-	
-	gLightsCount = 1;
+
 	const double lRadius = 5.0;
-	const double theta = 2.0 * M_PI / gLightsCount;
 	const double phi = -M_PI / 16.0;
 	const float lHeight = 3.0;
 	const float lRGB[3] = { 0.9, 0.9, 0.9 };
-	for( int i = 0; i < gLightsCount; i++ )
-		gLights.push_back( Light({ lRadius * sin( i * theta + phi ), lHeight, lRadius * cos( i * theta + phi ) },
-								 { lRGB[i % 3], lRGB[(i+1) % 3], lRGB[(i+2) % 3] },
-								 LightProjection,
-								 i) );
+	gLight = Light( { lRadius * sin( phi ), lHeight, lRadius * cos( phi ) }, { lRGB[0], lRGB[1], lRGB[2] }, LightProjection );
 	
-	/////////////////////////////////////////// Setting up shadow mapping //////////////////////////////////////////////
+	/////////////////////////////////////// Setting up reflective shadow map ///////////////////////////////////////////
 	
-	const auto SHADOW_SIDE_LENGTH = static_cast<GLuint>( max(fbWidth, fbHeight) );	// Texture size.
-	float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };								// Depth = 1.0.  So the rendering of the normal scene will produce something larger than this.
-	char shadowMapLocationStr[12];
-	
-	for( int i = 0; i < gLightsCount; i++ )											// Create framebuffers for rendering the shadow maps with respect to each light.
-	{
-		glGenFramebuffers( 1, &(gLights[i].shadowMapFBO) );							// All information is kept in the Light object.
-		
-		glGenTextures( 1, &(gLights[i].shadowMapTextureID) );						// Generate texture and properties.
-		glBindTexture( GL_TEXTURE_2D, gLights[i].shadowMapTextureID );
-		glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_SIDE_LENGTH, SHADOW_SIDE_LENGTH, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER );	// By doing this, anything farther than the shadow map will appear in light.
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER );
-		glTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor );
-		
-		glBindFramebuffer( GL_FRAMEBUFFER, gLights[i].shadowMapFBO );				// Attach texture as the framebuffer in the depth buffer.
-		glFramebufferTexture2D( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, gLights[i].shadowMapTextureID, 0 );
-		glDrawBuffer( GL_NONE );													// We won't render any color.
-		glReadBuffer( GL_NONE );
-		glBindFramebuffer( GL_FRAMEBUFFER, 0 );										// Unbind.
-		
-		sprintf( shadowMapLocationStr, "shadowMap%d", gLights[i].getUnit() );
-		gLights[i].shadowMapLocation = glGetUniformLocation( renderingProgram, shadowMapLocationStr );
-	}
+	const auto RSM_SIDE_LENGTH = static_cast<GLuint>( max(fbWidth, fbHeight) );	// Texture size.
+	float whiteColor[] = { 1.0, 1.0, 1.0, 1.0 };								// Depth = 1.0.  So the rendering of the normal scene will produce something larger than this.
+	float blackColor[] = { 0, 0, 0, 0 };										// Position = normal = color = 0.
+
+	glGenFramebuffers( 1, &(gLight.rsmFBO) );									// All information is kept in the Light object.
+	glBindFramebuffer( GL_FRAMEBUFFER, gLight.rsmFBO );
+
+	// Positions color buffer.
+	glGenTextures( 1, &(gLight.rsmPosition) );
+	glBindTexture( GL_TEXTURE_2D, gLight.rsmPosition );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, RSM_SIDE_LENGTH, RSM_SIDE_LENGTH, 0, GL_RGB, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER );
+	glTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, blackColor );		// Non comparison sampler beyond borders of light space.
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gLight.rsmPosition, 0 );	// Attached to layout 0.
+
+	// Normals color buffer.
+	glGenTextures( 1, &(gLight.rsmNormal) );
+	glBindTexture( GL_TEXTURE_2D, gLight.rsmNormal );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, RSM_SIDE_LENGTH, RSM_SIDE_LENGTH, 0, GL_RGB, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER );
+	glTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, blackColor );		// Non comparison sampler beyond borders of light space.
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gLight.rsmNormal, 0 );		// Attached to layout 1.
+
+	// Flux color buffer.
+	glGenTextures( 1, &(gLight.rsmFlux) );
+	glBindTexture( GL_TEXTURE_2D, gLight.rsmFlux );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, RSM_SIDE_LENGTH, RSM_SIDE_LENGTH, 0, GL_RGB, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER );
+	glTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, blackColor );		// Non comparison sampler beyond borders of light space.
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gLight.rsmFlux, 0 );		// Attached to layout 2.
+
+	// Depth buffer.
+	glGenTextures( 1, &(gLight.rsmDepth) );
+	glBindTexture( GL_TEXTURE_2D, gLight.rsmDepth );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, RSM_SIDE_LENGTH, RSM_SIDE_LENGTH, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER );	// By doing this, anything farther than the shadow map will appear in light.
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER );
+	glTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, whiteColor );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, gLight.rsmDepth, 0 );			// There's only at most one depth attachment/buffer.
+
+	// Tell OpenGL which color attachments will be used.
+	GLuint attachments[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+	glDrawBuffers( 3, attachments );
+
+	glBindFramebuffer( GL_FRAMEBUFFER, 0 );										// Unbind.
+
+	// Set uniforms in rendering shader.
+	glUseProgram( renderingProgram );
+	glUniform1i( glGetUniformLocation( renderingProgram, "rsmPosition" ), 0 );	// Reflective shadow map samples begin at texture unit 0.
+	glUniform1i( glGetUniformLocation( renderingProgram, "rsmNormal" ), 1 );
+	glUniform1i( glGetUniformLocation( renderingProgram, "rsmFlux" ), 2 );
+	glUniform1i( glGetUniformLocation( renderingProgram, "rsmDepth" ), 3 );
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -459,27 +489,21 @@ int main( int argc, const char * argv[] )
 		///////////////////////////////////////// Define new lights' positions /////////////////////////////////////////
 		
 		if( gRotatingLights )								// Check if rotating lights is enabled (with key 'L').
-		{
-			for( int i = 0; i < gLightsCount; i++ )
-				gLights[i].rotateBy( static_cast<float>( 0.01 * M_PI ) );
-		}
+				gLight.rotateBy( static_cast<float>( 0.01 * M_PI ) );
 		
 		//////////////////////////////////// First pass: render scene to depth maps ////////////////////////////////////
 		
 		ogl.useProgram( shadowMapProgram );					// Set shadow map writing program.
-		for( int i = 0; i < gLightsCount; i++ )
-		{
-			mat44 LightView = Tx::lookAt( gLights[i].position, gPointOfInterest, Tx::Y_AXIS );
-			gLights[i].SpaceMatrix = gLights[i].Projection * LightView;
-			
-			glViewport( 0, 0, SHADOW_SIDE_LENGTH, SHADOW_SIDE_LENGTH );
-			glBindFramebuffer( GL_FRAMEBUFFER, gLights[i].shadowMapFBO );
-			glClear( GL_DEPTH_BUFFER_BIT );
-			
-			ogl.setLighting( gLights[i], LightView );
-			renderScene( LightProjection, LightView, Model, currentTime );
-			glBindFramebuffer( GL_FRAMEBUFFER, 0 );			// Unbind: return control to normal draw framebuffer.
-		}
+		mat44 LightView = Tx::lookAt( gLight.position, gPointOfInterest, Tx::Y_AXIS );
+		gLight.SpaceMatrix = gLight.Projection * LightView;
+
+		glViewport( 0, 0, RSM_SIDE_LENGTH, RSM_SIDE_LENGTH );
+		glBindFramebuffer( GL_FRAMEBUFFER, gLight.rsmFBO );
+		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+
+		ogl.setLighting( gLight, LightView );
+		renderScene( LightProjection, LightView, Model, currentTime );
+		glBindFramebuffer( GL_FRAMEBUFFER, 0 );			// Unbind: return control to normal draw framebuffer.
 
 		//////////////////////////////// Second pass: render scene with shadow mapping /////////////////////////////////
 
@@ -495,16 +519,18 @@ int main( int argc, const char * argv[] )
 		glViewport( 0, 0, fbWidth, fbHeight );
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 		
-		// Enable shadow mapping texture samplers.
-		for( int i = 0; i < gLightsCount; i++ )
-		{
-			glActiveTexture( static_cast<GLenum>( GL_TEXTURE0 + gLights[i].getUnit() ) );
-			glBindTexture( GL_TEXTURE_2D, gLights[i].shadowMapTextureID );
-			glUniform1i( gLights[i].shadowMapLocation, gLights[i].getUnit() );	// The light shadow map is associated to unit GL_TEXTURE0 + light unit.
-			
-			// Set and send the lighting properties.
-			ogl.setLighting( gLights[i], Camera, true );
-		}
+		// Enable reflective shadow map texture samplers.
+		glActiveTexture( GL_TEXTURE0 );								// Positions.
+		glBindTexture( GL_TEXTURE_2D, gLight.rsmPosition );
+		glActiveTexture( GL_TEXTURE1 );								// Normals.
+		glBindTexture( GL_TEXTURE_2D, gLight.rsmNormal );
+		glActiveTexture( GL_TEXTURE2 );								// Flux.
+		glBindTexture( GL_TEXTURE_2D, gLight.rsmFlux );
+		glActiveTexture( GL_TEXTURE3 );								// Depth.
+		glBindTexture( GL_TEXTURE_2D, gLight.rsmDepth );
+
+		// Set and send the lighting properties.
+		ogl.setLighting( gLight, Camera );
 		renderScene( Proj, Camera, Model, currentTime );
 
 		/////////////////////////////////////////////// Rendering text /////////////////////////////////////////////////

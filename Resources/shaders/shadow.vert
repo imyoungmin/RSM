@@ -1,6 +1,8 @@
 #version 410 core
 
 in vec3 position;
+in vec3 normal;
+in vec2 texCoords;
 
 uniform mat4 Model;										// Model transform takes points from model into world coordinates.
 uniform mat4 LightSpaceMatrix;							// Takes world to light space coordinates (= Proj_light * View_light).

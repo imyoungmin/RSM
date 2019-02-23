@@ -1,7 +1,7 @@
 #version 410 core
 
-uniform vec4 lightPosition0;							// In camera coordinates.
-uniform vec3 lightColor0;								// Only RGB.
+uniform vec4 lightPosition;								// In camera coordinates.
+uniform vec3 lightColor;								// Only RGB.
 
 uniform vec4 ambient, diffuse, specular;				// The [r,g,b,a] ambient, diffuse, and specular material properties, respectively.
 uniform float shininess;
@@ -9,14 +9,17 @@ uniform bool useBlinnPhong;
 uniform bool useTexture;
 uniform bool drawPoint;
 
-uniform sampler2D shadowMap0;							// Shadow map textures for ith light.
+uniform sampler2D rsmPosition;							// Reflective shadow map textures: positions.
+uniform sampler2D rsmNormal;							// Normals.
+uniform sampler2D rsmFlux;								// Flux.
+uniform sampler2D rsmDepth;								// Depths.
 uniform sampler2D objectTexture;						// 3D object texture.
 
 in vec3 vPosition;										// Position in view (camera) coordinates.
 in vec3 vNormal;										// Normal vector in view coordinates.
 in vec2 oTexCoords;
 
-in vec4 fragPosLightSpace0;								// Position of fragment in light space (need w component for manual perspective division).
+in vec4 fragPosLightSpace;								// Position of fragment in light space (need w component for manual perspective division).
 
 out vec4 color;
 
@@ -58,7 +61,11 @@ vec3 shade( sampler2D shadowMap, vec4 fragPosLightSpace, vec3 lightColor, vec3 l
 	vec3 diffuseColor = diffuse.rgb,
 		 specularColor = specular.rgb;
 	float shadow;
-	
+
+vec3 projFrag = fragPosLightSpace.xyz / fragPosLightSpace.w;			// Perspective division: fragment is in [-1, +1].
+	projFrag = projFrag * 0.5 + 0.5;				// Normalize fragment position to [0, 1].
+	vec2 uv = projFrag.xy;
+
 	if( useBlinnPhong )
 	{
 		vec3 L = normalize( lightPosition - vPosition );
@@ -88,7 +95,7 @@ vec3 shade( sampler2D shadowMap, vec4 fragPosLightSpace, vec3 lightColor, vec3 l
 	}
 	
 	// Fragment color with respect to this light (excluding ambient component).
-	return ( 1.0 - shadow ) * ( diffuseColor + specularColor ) * lightColor;
+	return ( 1.0 - shadow ) * ( diffuseColor + specularColor ) * lightColor * texture( rsmPosition, uv ).rgb;
 }
 
 /**
@@ -107,7 +114,7 @@ void main( void )
 	}
 	
     // Final fragment color is the sum of light contributions.
-    vec3 totalColor = ambientColor + shade( shadowMap0, fragPosLightSpace0, lightColor0, lightPosition0.xyz, N, E );
+    vec3 totalColor = ambientColor + shade( rsmDepth, fragPosLightSpace, lightColor, lightPosition.xyz, N, E );
     if( drawPoint )
     {
         if( dot( gl_PointCoord - 0.5, gl_PointCoord - 0.5 ) > 0.25 )		// For rounded points.

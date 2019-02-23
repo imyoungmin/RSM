@@ -11,13 +11,13 @@ uniform mat4 Projection;
 uniform float pointSize;
 uniform bool useBlinnPhong;
 
-uniform mat4 LightSpaceMatrix0;							// Takes world to light space coordinates (= Proj_light * View_light).
+uniform mat4 LightSpaceMatrix;							// Takes world to light space coordinates (= Proj_light * View_light).
 
 out vec3 vPosition;										// Position in view (camera) coordinates.
 out vec3 vNormal;										// Normal vector in view coordinates.
 out vec2 oTexCoords;									// Interpolate texture coordinates into fragment shader.
 
-out vec4 fragPosLightSpace0;							// Position of fragment in light space (need w component for manual perspective division).
+out vec4 fragPosLightSpace;								// Position of fragment in light space (need w component for manual perspective division).
 
 void main( void )
 {
@@ -33,5 +33,5 @@ void main( void )
 	gl_PointSize = pointSize;
 	oTexCoords = texCoords;
 	
-	fragPosLightSpace0 = LightSpaceMatrix0 * p;			// Send vertex position in light space projected coordinates.
+	fragPosLightSpace = LightSpaceMatrix * p;			// Send vertex position in light space projected coordinates.
 }

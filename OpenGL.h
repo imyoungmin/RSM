@@ -111,7 +111,7 @@ public:
 	void setUsingUniformScaling( bool u );
 	void create3DObject( const char* name, const char* filename, const char* textureFilename = nullptr );
 	void useProgram( GLuint program );
-	void setLighting( const Light& light, const mat44& View, bool useUnitSuffix = false );
+	void setLighting( const Light& light, const mat44& View );
 };
 
 #endif /* OpenGL_h */
