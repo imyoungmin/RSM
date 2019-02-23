@@ -259,35 +259,6 @@ void resizeCallback( GLFWwindow* window, int w, int h )
 }
 
 /**
- * Render the swinging lamp.
- * @param Projection The 4x4 projection matrix.
- * @param View The 4x4 view matrix.
- * @param T The transformation matrix for the whole lamp object.
- * @param currentTime Curent step.
- */
-void renderSwingingLamp( const mat44& Projection, const mat44& View, const mat44& T, double currentTime )
-{
-	ogl.setColor( 0.7, 0.7, 0.0, 0.5 );
-	vec3 start = {-sqrt(18)+0.78, 0, 0}, end = {sqrt(18)-0.78, 0, 0}, middle = ( start + end ) / 2.0;
-	middle[1] -= 0.75;
-	vector<vec3> vertices( { start, middle, end } );
-	ogl.drawPath( Projection, View, T, vertices );
-	
-	ogl.setColor( 0.7, 0.7, 0.0, 1.0, -1.0f );
-	ogl.drawSphere( Projection, View, T * Tx::translate( middle - Tx::Y_AXIS * 0.08 ) * Tx::scale( 0.08 ) );
-	
-	ogl.setColor( 0.4, 0.18, 0.15, 0.8 );
-	ogl.render3DObject( Projection, View, T * Tx::translate( middle - Tx::Y_AXIS * 0.08 ) * Tx::scale( 0.5 ), "lamp" );
-	
-	vector<vec3> vertices2( { middle, middle - Tx::Y_AXIS } );
-	ogl.drawPath( Projection, View, T, vertices2 );
-	
-	ogl.setColor( 0.7, 0.7, 0.0, 1.0, -1.0f );
-	ogl.drawSphere( Projection, View, T * Tx::translate( middle - Tx::Y_AXIS * 0.725 ) * Tx::scale( 0.08 ) );
-	ogl.drawSphere( Projection, View, T * Tx::translate( middle - Tx::Y_AXIS ) * Tx::scale( 0.05 ) );
-}
-
-/**
  * Render the scene.
  * @param Projection The 4x4 projection matrix to use.
  * @param View The 4x4 view matrix.
@@ -296,38 +267,25 @@ void renderSwingingLamp( const mat44& Projection, const mat44& View, const mat44
  */
 void renderScene( const mat44& Projection, const mat44& View, const mat44& Model, double currentTime )
 {
-	ogl.setColor( 0.9, 0.9, 0.9, 1.0, 32.0 );			// Columns.
-	float r = 6.0f;
-	for( int i = 0; i < 4; i++ )
-	{
-		double angle = M_PI/4.0 + i * M_PI/2.0;
-		ogl.render3DObject( Projection, View, Model * Tx::translate( r * sin( angle ), 0, r * cos( angle ) ), "column", true, gLightsCount );	// Use texture.
-	}
+	ogl.setColor( 0.85, 0.85, 0.85 );					// Statue.
+//	ogl.render3DObject( Projection, View, Model * Tx::translate( -0.5, 0.0, -2.0 ) * Tx::rotate( 5.0 * M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 1.35 ), "mercury" );
+	ogl.render3DObject( Projection, View, Model * Tx::translate( 0.6, 0.4, -1.0 ) * Tx::scale( 1.4 ), "bunny" );
+
+	// Left wall.
+	ogl.setColor( 0.8941, 0.0, 0.4862, 1.0, 32.0 );
+	ogl.drawCube( Projection, View, Model * Tx::rotate( -M_PI / 4.0, Tx::Y_AXIS ) * Tx::translate( -3.0, 3.0, 0.0 ) * Tx::scale( 0.05, 12.0, 12.0 ) );
+
+	// Right wall.
+	ogl.setColor( 0.06274, 0.5843, 0.8941, 1.0, 32.0 );
+	ogl.drawCube( Projection, View, Model * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::translate( 3.0, 3.0, 0.0 ) * Tx::scale( 0.05, 12.0, 12.0 ) );
 	
-	ogl.setColor( 0.85, 0.85, 0.85 );					// Dragon.
-	ogl.render3DObject( Projection, View, Model * Tx::translate( 0.0, 0.2, 0.0 ) * Tx::rotate( M_PI/2.0, Tx::Y_AXIS ), "dragon" );
-	
-	ogl.setColor( 0.8, 0.8, 0.8, 1.0, 16.0 );			// Ground with tiles.
-	for( int i = -9; i <= 9; i++ )
-	{
-		for( int j = -9; j <= 9; j++ )
-		{
-			if( i >= -1 && i <= 1 && j >= -1 && j <= 1 )
-				continue;
-			ogl.render3DObject( Projection, View, Model * Tx::translate( i, 0, j ) * Tx::scale( 0.5 ), "tile", true, gLightsCount );			// Use texture.
-		}
-	}
-	
-	// Dragon circular base.
-	ogl.setColor( 0.35, 0.18, 0.15, 1.0, 32.0 );
-	ogl.drawCylinder( Projection, View, Model * Tx::rotate( -M_PI_2, Tx::X_AXIS ) * Tx::scale( 2.5, 2.5, 0.2 ) );
-	ogl.setColor( 0.23, 0.22, 0.25, 1.0, 32.0 );
-	ogl.drawCylinder( Projection, View, Model * Tx::rotate( -M_PI_2, Tx::X_AXIS ) * Tx::scale( 3.0, 3.0, 0.1 ) );
-	
-	// Render swinging lamps.
-	mat44 T = Tx::translate( 0.0, 4.48, sqrt(18) ) * Tx::rotate( M_PI_4 * sin( currentTime * 4.0 ), Tx::X_AXIS );
-	for( int i = 0; i < 4; i++ )
-		renderSwingingLamp( Projection, View, Model * Tx::rotate( M_PI_2 * i, Tx::Y_AXIS ) * T, currentTime );
+	// Bottom wall.
+	ogl.setColor( 0.298, 0.7333, 0.0902, 1.0, 32.0 );
+	ogl.drawCube( Projection, View, Model * Tx::translate( 0.0, -0.025, 0.0 ) * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 12.0, 0.05, 12.0 ) );
+
+	// Top wall.
+	ogl.setColor( 1.0, 0.549, 0.0, 1.0, 32.0 );
+	ogl.drawCube( Projection, View, Model * Tx::translate( 0.0, 6.025, 0.0 ) * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 12.0, 0.05, 12.0 ) );
 }
 
 /**
@@ -338,10 +296,8 @@ void renderScene( const mat44& Projection, const mat44& View, const mat44& Model
  */
 int main( int argc, const char * argv[] )
 {
-	srand( static_cast<unsigned>( time( 0 ) ) );
-	
-	gPointOfInterest = { 0, 0, 0 };		// Camera controls globals.
-	gEye = { 3, 7, 17 };
+	gPointOfInterest = { 0, 3, 0 };		// Camera controls globals.
+	gEye = { 0, 3, 7 };
 	gUp = Tx::Y_AXIS;
 	
 	gLocked = false;					// Track if mouse button is pressed down.
@@ -366,8 +322,8 @@ int main( int argc, const char * argv[] )
 	cout << glfwGetVersionString() << endl;
 
 	// Create window object (with screen-dependent size metrics).
-	int windowWidth = 1024;
-	int windowHeight = 1024;
+	int windowWidth = 768;
+	int windowHeight = 768;
 	window = glfwCreateWindow( windowWidth, windowHeight, "Real-Time Rendering", nullptr, nullptr );
 
 	if( !window )
@@ -402,7 +358,7 @@ int main( int argc, const char * argv[] )
 	// Initialize shaders for geom/sequence drawing program.
 	cout << "Initializing rendering shaders... ";
 	Shaders shaders;
-	GLuint renderingProgram = shaders.compile( conf::SHADERS_FOLDER + "shader.vert", conf::SHADERS_FOLDER + "shader.frag" );		// Usual rendering.
+	GLuint renderingProgram = shaders.compile( conf::SHADERS_FOLDER + "rsm.vert", conf::SHADERS_FOLDER + "rsm.frag" );
 	cout << "Done!" << endl;
 	
 	// Initialize shaders program for shadow mapping.
@@ -412,16 +368,16 @@ int main( int argc, const char * argv[] )
 	
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
 	
-	float lNearPlane = 0.01f, lFarPlane = 200.0f;									// Setting up the light projection matrix.
-	float lSide = 30.0f;
+	float lNearPlane = 0.01f, lFarPlane = 20.0f;									// Setting up the light projection matrix.
+	float lSide = 15.0f;
 	mat44 LightProjection = Tx::ortographic( -lSide, lSide, -lSide, lSide, lNearPlane, lFarPlane );
 	
-	gLightsCount = 3;
-	const double lRadius = sqrt( 11 * 11 * 2 );
+	gLightsCount = 1;
+	const double lRadius = 5.0;
 	const double theta = 2.0 * M_PI / gLightsCount;
-	const float phi = static_cast<float>( rand() ) / static_cast<float>( RAND_MAX / M_PI_4 );
-	const float lHeight = 15;
-	const float lRGB[3] = { 0.6, 0.5, 0.5 };
+	const double phi = -M_PI / 16.0;
+	const float lHeight = 3.0;
+	const float lRGB[3] = { 0.9, 0.9, 0.9 };
 	for( int i = 0; i < gLightsCount; i++ )
 		gLights.push_back( Light({ lRadius * sin( i * theta + phi ), lHeight, lRadius * cos( i * theta + phi ) },
 								 { lRGB[i % 3], lRGB[(i+1) % 3], lRGB[(i+2) % 3] },
@@ -430,7 +386,7 @@ int main( int argc, const char * argv[] )
 	
 	/////////////////////////////////////////// Setting up shadow mapping //////////////////////////////////////////////
 	
-	const auto SHADOW_SIDE_LENGTH = static_cast<GLuint>( max(fbWidth, fbHeight)*2 );	// Texture size.
+	const auto SHADOW_SIDE_LENGTH = static_cast<GLuint>( max(fbWidth, fbHeight) );	// Texture size.
 	float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };								// Depth = 1.0.  So the rendering of the normal scene will produce something larger than this.
 	char shadowMapLocationStr[12];
 	
@@ -474,11 +430,9 @@ int main( int argc, const char * argv[] )
 	float transcurredTimePerFrame;
 	string FPS = "FPS: ";
 
-	ogl.setUsingUniformScaling( true );							// Important! We'll be using uniform scaling in the following scene rendering.
-	ogl.create3DObject( "column", "column.obj", "Minoan_column_b.png" );	// Create 3D object models.
-	ogl.create3DObject( "dragon", "dragon.obj" );
-	ogl.create3DObject( "tile", "tile.obj", "Iron_Plate_DIF.png" );
-	ogl.create3DObject( "lamp", "lamp.obj", "cl_wires.jpg" );
+	ogl.setUsingUniformScaling( false );
+//	ogl.create3DObject( "mercury", "mercury.obj" );
+	ogl.create3DObject( "bunny", "bunny.obj" );
 	
 	float eyeY = gEye[1];										// Build eye components from its intial value.
 	float eyeXZRadius = sqrt( gEye[0]*gEye[0] + gEye[2]*gEye[2] );
@@ -544,7 +498,7 @@ int main( int argc, const char * argv[] )
 		// Enable shadow mapping texture samplers.
 		for( int i = 0; i < gLightsCount; i++ )
 		{
-			glActiveTexture( GL_TEXTURE0 + gLights[i].getUnit() );
+			glActiveTexture( static_cast<GLenum>( GL_TEXTURE0 + gLights[i].getUnit() ) );
 			glBindTexture( GL_TEXTURE_2D, gLights[i].shadowMapTextureID );
 			glUniform1i( gLights[i].shadowMapLocation, gLights[i].getUnit() );	// The light shadow map is associated to unit GL_TEXTURE0 + light unit.
 			
