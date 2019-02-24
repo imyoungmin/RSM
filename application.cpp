@@ -267,7 +267,8 @@ void resizeCallback( GLFWwindow* window, int w, int h )
  */
 void renderScene( const mat44& Projection, const mat44& View, const mat44& Model, double currentTime )
 {
-	ogl.setColor( 0.75, 0.75, 0.75, 1.0, -1.0f );					// Statue.
+	// Statue.
+	ogl.setColor( 0.65, 0.65, 0.65, 1.0, -1.0f );
 	ogl.render3DObject( Projection, View, Model * Tx::translate( -0.5, 0.0, -2.0 ) * Tx::rotate( 5.0 * M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 1.35 ), "mercury" );
 //	ogl.render3DObject( Projection, View, Model * Tx::translate( 0.6, 0.4, -1.0 ) * Tx::scale( 1.4 ), "bunny" );
 
@@ -280,7 +281,7 @@ void renderScene( const mat44& Projection, const mat44& View, const mat44& Model
 	ogl.drawCube( Projection, View, Model * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::translate( 3.0, 3.0, 0.0 ) * Tx::scale( 0.05, 12.0, 12.0 ) );
 	
 	// Bottom wall.
-	ogl.setColor( 1.0, 1.0, 1.0, 1.0, -1.0f );
+	ogl.setColor( 1.0, 1.0, 0.0, 1.0, -1.0f );
 	ogl.drawCube( Projection, View, Model * Tx::translate( 0.0, -0.025, 0.0 ) * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 12.0, 0.05, 12.0 ) );
 }
 
@@ -293,7 +294,7 @@ void renderScene( const mat44& Projection, const mat44& View, const mat44& Model
 int main( int argc, const char * argv[] )
 {
 	gPointOfInterest = { 0, 3, 0 };		// Camera controls globals.
-	gEye = { 0, 5, 7 };
+	gEye = { 5, 5, 5 };
 	gUp = Tx::Y_AXIS;
 	
 	gLocked = false;					// Track if mouse button is pressed down.
@@ -364,13 +365,13 @@ int main( int argc, const char * argv[] )
 	
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
 	
-	float lNearPlane = 0.01f, lFarPlane = 25.0f;								// Setting up the light projection matrix.
-	float lSide = 15.0f;
+	float lNearPlane = 0.01f, lFarPlane = 50.0f;								// Setting up the light projection matrix.
+	float lSide = 20.0f;
 	mat44 LightProjection = Tx::ortographic( -lSide, lSide, -lSide, lSide, lNearPlane, lFarPlane );
 
 	const double lRadius = 6.0;
 	const double phi = 0.0;
-	const float lHeight = 3.25;
+	const float lHeight = 5.25;
 	const float lRGB[3] = { 0.9, 0.9, 0.9 };
 	gLight = Light( { lRadius * sin( phi ), lHeight, lRadius * cos( phi ) }, { lRGB[0], lRGB[1], lRGB[2] }, LightProjection );
 	
