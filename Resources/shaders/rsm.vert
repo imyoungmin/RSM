@@ -17,10 +17,15 @@ out vec3 vPosition;										// Position in view (camera) coordinates.
 out vec3 vNormal;										// Normal vector in view coordinates.
 out vec2 oTexCoords;									// Interpolate texture coordinates into fragment shader.
 
+out vec3 gPosition;										// Position and normal in world space coordinates.
+out vec3 gNormal;
+
 out vec4 fragPosLightSpace;								// Position of fragment in light space (need w component for manual perspective division).
 
 void main( void )
 {
+	mat3 normalMatrix = transpose( inverse ( mat3( Model ) ) );
+
 	vec4 p = Model * vec4( position.xyz, 1.0 );			// Vertex in world coordinates.
 	gl_Position = Projection * View * p;
 
@@ -34,4 +39,7 @@ void main( void )
 	oTexCoords = texCoords;
 	
 	fragPosLightSpace = LightSpaceMatrix * p;			// Send vertex position in light space projected coordinates.
+
+	gPosition = p.xyz;									// Send vertex position and normal in global coordinates.
+	gNormal = normalMatrix * normal;
 }

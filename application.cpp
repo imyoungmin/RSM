@@ -6,6 +6,7 @@
 #include <armadillo>
 #include <OpenGL/gl3.h>
 #include <string>
+#include <random>
 #include "GLFW/glfw3.h"
 #include "ArcBall/Ball.h"
 #include "OpenGL.h"
@@ -266,24 +267,24 @@ void resizeCallback( GLFWwindow* window, int w, int h )
  */
 void renderScene( const mat44& Projection, const mat44& View, const mat44& Model, double currentTime )
 {
-	ogl.setColor( 0.85, 0.85, 0.85 );					// Statue.
-//	ogl.render3DObject( Projection, View, Model * Tx::translate( -0.5, 0.0, -2.0 ) * Tx::rotate( 5.0 * M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 1.35 ), "mercury" );
-	ogl.render3DObject( Projection, View, Model * Tx::translate( 0.6, 0.4, -1.0 ) * Tx::scale( 1.4 ), "bunny" );
+	ogl.setColor( 0.5, 0.5, 0.5, 1.0, -1.0f );					// Statue.
+	ogl.render3DObject( Projection, View, Model * Tx::translate( -0.5, 0.0, -2.0 ) * Tx::rotate( 5.0 * M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 1.35 ), "mercury" );
+//	ogl.render3DObject( Projection, View, Model * Tx::translate( 0.6, 0.4, -1.0 ) * Tx::scale( 1.4 ), "bunny" );
 
 	// Left wall.
-	ogl.setColor( 0.8941, 0.0, 0.4862, 1.0, 32.0 );
+	ogl.setColor( 0.8941, 0.0, 0.4862, 1.0, -1.0f );
 	ogl.drawCube( Projection, View, Model * Tx::rotate( -M_PI / 4.0, Tx::Y_AXIS ) * Tx::translate( -3.0, 3.0, 0.0 ) * Tx::scale( 0.05, 12.0, 12.0 ) );
 
 	// Right wall.
-	ogl.setColor( 0.06274, 0.5843, 0.8941, 1.0, 32.0 );
+	ogl.setColor( 0.06274, 0.5843, 0.8941, 1.0, -1.0f );
 	ogl.drawCube( Projection, View, Model * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::translate( 3.0, 3.0, 0.0 ) * Tx::scale( 0.05, 12.0, 12.0 ) );
 	
 	// Bottom wall.
-	ogl.setColor( 0.298, 0.7333, 0.0902, 1.0, 32.0 );
+	ogl.setColor( 0.298, 0.7333, 0.0902, 1.0, -1.0f );
 	ogl.drawCube( Projection, View, Model * Tx::translate( 0.0, -0.025, 0.0 ) * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 12.0, 0.05, 12.0 ) );
 
 	// Top wall.
-	ogl.setColor( 1.0, 0.549, 0.0, 1.0, 32.0 );
+	ogl.setColor( 1.0, 0.549, 0.0, 1.0, -1.0f );
 	ogl.drawCube( Projection, View, Model * Tx::translate( 0.0, 6.025, 0.0 ) * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 12.0, 0.05, 12.0 ) );
 }
 
@@ -367,13 +368,13 @@ int main( int argc, const char * argv[] )
 	
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
 	
-	float lNearPlane = 0.01f, lFarPlane = 20.0f;									// Setting up the light projection matrix.
-	float lSide = 15.0f;
+	float lNearPlane = 0.01f, lFarPlane = 50.0f;								// Setting up the light projection matrix.
+	float lSide = 20.0f;
 	mat44 LightProjection = Tx::ortographic( -lSide, lSide, -lSide, lSide, lNearPlane, lFarPlane );
 
-	const double lRadius = 5.0;
-	const double phi = -M_PI / 16.0;
-	const float lHeight = 3.0;
+	const double lRadius = 6.0;
+	const double phi = 0.0;
+	const float lHeight = 3.25;
 	const float lRGB[3] = { 0.9, 0.9, 0.9 };
 	gLight = Light( { lRadius * sin( phi ), lHeight, lRadius * cos( phi ) }, { lRGB[0], lRGB[1], lRGB[2] }, LightProjection );
 	
@@ -442,6 +443,24 @@ int main( int argc, const char * argv[] )
 	glUniform1i( glGetUniformLocation( renderingProgram, "rsmNormal" ), 1 );
 	glUniform1i( glGetUniformLocation( renderingProgram, "rsmFlux" ), 2 );
 	glUniform1i( glGetUniformLocation( renderingProgram, "rsmDepth" ), 3 );
+
+	////////////////////////////////// Generating random samples in a unit disk ////////////////////////////////////////
+
+	const size_t N_SAMPLES = 100;
+	std::random_device rd;											// Request random data from OS.
+	std::mt19937 generator( rd() );
+	uniform_real_distribution<float> uniform( 0, 1 );
+	vector<float> rsmSamples;
+	for( int i = 0; i < N_SAMPLES; i++ )
+	{
+		float ci1 = uniform( generator );							// Generate two uniform random numbers.
+		float ci2 = uniform( generator );
+		rsmSamples.push_back( static_cast<float>( ci1 * sin( 2.0 * M_PI * ci2 ) ) );
+		rsmSamples.push_back( static_cast<float>( ci2 * cos( 2.0 * M_PI * ci2 ) ) );
+	}
+
+	// Send samples to rendering fragment shader.
+	glUniform2fv( glGetUniformLocation( renderingProgram, "rsmSamplePositions" ), N_SAMPLES, rsmSamples.data() );
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -461,8 +480,8 @@ int main( int argc, const char * argv[] )
 	string FPS = "FPS: ";
 
 	ogl.setUsingUniformScaling( false );
-//	ogl.create3DObject( "mercury", "mercury.obj" );
-	ogl.create3DObject( "bunny", "bunny.obj" );
+	ogl.create3DObject( "mercury", "mercury.obj" );
+//	ogl.create3DObject( "bunny", "bunny.obj" );
 	
 	float eyeY = gEye[1];										// Build eye components from its intial value.
 	float eyeXZRadius = sqrt( gEye[0]*gEye[0] + gEye[2]*gEye[2] );
