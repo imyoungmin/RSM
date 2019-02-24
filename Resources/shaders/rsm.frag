@@ -1,8 +1,8 @@
 #version 410 core
 
 const uint N_SAMPLES = 100;
-const float R_MAX = 0.15;								// Maximum sampling radius.
-const float RSM_INTENSITY = 0.25;
+const float R_MAX = 0.085;								// Maximum sampling radius.
+const float RSM_INTENSITY = 0.36;
 
 uniform vec4 lightPosition;								// In camera coordinates.
 uniform vec3 lightColor;								// Only RGB.
@@ -49,15 +49,15 @@ vec3 indirectLighting( vec2 uvFrag, vec3 n, vec3 x )
 		vec3 n_p = texture( rsmNormal, uv ).xyz;
 
 		// Irradiance at current fragment w.r.t. pixel light at uv.
-		vec3 r = x - x_p;						// Difference vector.
+		vec3 r = x - x_p;								// Difference vector.
 		float d2 = dot( r, r );							// Square distance.
 		vec3 E_p = flux * ( max( 0.0, dot( n_p, r ) ) * max( 0.0, dot( n, -r ) ) );
-		E_p *= uv.x * uv.x / ( d2 * d2 );				// Weighting contribution and normalizing.
+		E_p *= rsmSamplePositions[i].x * rsmSamplePositions[i].x / ( d2 * d2 );				// Weighting contribution and normalizing.
 
 		rsmShading += E_p;								// Accumulate.
 	}
 
-	return rsmShading * RSM_INTENSITY;	// Modulate result with some intensity value.
+	return rsmShading * RSM_INTENSITY;					// Modulate result with some intensity value.
 }
 
 /**
@@ -126,7 +126,7 @@ vec3 shade( vec3 projFrag, vec3 N, vec3 E, vec3 gN, vec3 gP )
 	vec3 eColor = indirectLighting( projFrag.xy, gN, gP );
 	
 	// Fragment color with respect to this light (excluding ambient component).
-	return ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * lightColor;
+	return ( 1.0 /*- shadow*/ ) * ( diffuseColor + specularColor + eColor ) * lightColor;
 }
 
 /**
@@ -149,7 +149,7 @@ void main( void )
     projFrag = projFrag * 0.5 + 0.5;								// Normalize fragment position to [0, 1].
 
     vec3 gN = normalize( gNormal );
-    vec3 gP = gPosition - 0.001 * gN;								// Avoid the illumination integral singularity (at the joint of walls).
+    vec3 gP = gPosition/* - 0.0001 * gN*/;								// Avoid the illumination integral singularity (at the joint of walls).
 	
     // Final fragment color is the sum of light contributions.
 	vec3 totalColor = ambientColor + shade( projFrag, N, E, gN, gP );

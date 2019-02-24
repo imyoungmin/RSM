@@ -267,7 +267,7 @@ void resizeCallback( GLFWwindow* window, int w, int h )
  */
 void renderScene( const mat44& Projection, const mat44& View, const mat44& Model, double currentTime )
 {
-	ogl.setColor( 0.5, 0.5, 0.5, 1.0, -1.0f );					// Statue.
+	ogl.setColor( 0.75, 0.75, 0.75, 1.0, -1.0f );					// Statue.
 	ogl.render3DObject( Projection, View, Model * Tx::translate( -0.5, 0.0, -2.0 ) * Tx::rotate( 5.0 * M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 1.35 ), "mercury" );
 //	ogl.render3DObject( Projection, View, Model * Tx::translate( 0.6, 0.4, -1.0 ) * Tx::scale( 1.4 ), "bunny" );
 
@@ -280,12 +280,8 @@ void renderScene( const mat44& Projection, const mat44& View, const mat44& Model
 	ogl.drawCube( Projection, View, Model * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::translate( 3.0, 3.0, 0.0 ) * Tx::scale( 0.05, 12.0, 12.0 ) );
 	
 	// Bottom wall.
-	ogl.setColor( 0.298, 0.7333, 0.0902, 1.0, -1.0f );
+	ogl.setColor( 1.0, 1.0, 1.0, 1.0, -1.0f );
 	ogl.drawCube( Projection, View, Model * Tx::translate( 0.0, -0.025, 0.0 ) * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 12.0, 0.05, 12.0 ) );
-
-	// Top wall.
-	ogl.setColor( 1.0, 0.549, 0.0, 1.0, -1.0f );
-	ogl.drawCube( Projection, View, Model * Tx::translate( 0.0, 6.025, 0.0 ) * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 12.0, 0.05, 12.0 ) );
 }
 
 /**
@@ -297,7 +293,7 @@ void renderScene( const mat44& Projection, const mat44& View, const mat44& Model
 int main( int argc, const char * argv[] )
 {
 	gPointOfInterest = { 0, 3, 0 };		// Camera controls globals.
-	gEye = { 0, 3, 8 };
+	gEye = { 0, 5, 7 };
 	gUp = Tx::Y_AXIS;
 	
 	gLocked = false;					// Track if mouse button is pressed down.
@@ -368,8 +364,8 @@ int main( int argc, const char * argv[] )
 	
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
 	
-	float lNearPlane = 0.01f, lFarPlane = 50.0f;								// Setting up the light projection matrix.
-	float lSide = 20.0f;
+	float lNearPlane = 0.01f, lFarPlane = 25.0f;								// Setting up the light projection matrix.
+	float lSide = 15.0f;
 	mat44 LightProjection = Tx::ortographic( -lSide, lSide, -lSide, lSide, lNearPlane, lFarPlane );
 
 	const double lRadius = 6.0;
@@ -481,7 +477,7 @@ int main( int argc, const char * argv[] )
 
 	ogl.setUsingUniformScaling( false );
 	ogl.create3DObject( "mercury", "mercury.obj" );
-//	ogl.create3DObject( "bunny", "bunny.obj" );
+	ogl.create3DObject( "bunny", "bunny.obj" );
 	
 	float eyeY = gEye[1];										// Build eye components from its intial value.
 	float eyeXZRadius = sqrt( gEye[0]*gEye[0] + gEye[2]*gEye[2] );
