@@ -355,12 +355,12 @@ int main( int argc, const char * argv[] )
 	// Initialize shaders for geom/sequence drawing program.
 	cout << "Initializing rendering shaders... ";
 	Shaders shaders;
-	GLuint renderingProgram = shaders.compile( conf::SHADERS_FOLDER + "rsm.vert", conf::SHADERS_FOLDER + "rsm.frag" );
+	GLuint renderingProgram = shaders.compile( conf::SHADERS_FOLDER + "render.vert", conf::SHADERS_FOLDER + "render.frag" );
 	cout << "Done!" << endl;
 	
 	// Initialize shaders program for shadow mapping.
 	cout << "Initializing shadow mapping shaders... ";
-	GLuint shadowMapProgram = shaders.compile( conf::SHADERS_FOLDER + "shadow.vert", conf::SHADERS_FOLDER + "shadow.frag" );
+	GLuint shadowMapProgram = shaders.compile( conf::SHADERS_FOLDER + "generateRSM.vert", conf::SHADERS_FOLDER + "generateRSM.frag" );
 	cout << "Done!" << endl;
 	
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
