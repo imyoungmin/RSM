@@ -436,10 +436,10 @@ int main( int argc, const char * argv[] )
 
 	// Set uniforms in rendering shader.
 	glUseProgram( renderingProgram );
-	glUniform1i( glGetUniformLocation( renderingProgram, "rsmPosition" ), 0 );	// Reflective shadow map samples begin at texture unit 0.
-	glUniform1i( glGetUniformLocation( renderingProgram, "rsmNormal" ), 1 );
-	glUniform1i( glGetUniformLocation( renderingProgram, "rsmFlux" ), 2 );
-	glUniform1i( glGetUniformLocation( renderingProgram, "rsmDepth" ), 3 );
+	glUniform1i( glGetUniformLocation( renderingProgram, "sRSMPosition" ), 0 );	// Reflective shadow map samplers begin at texture unit 0.
+	glUniform1i( glGetUniformLocation( renderingProgram, "sRSMNormal" ), 1 );
+	glUniform1i( glGetUniformLocation( renderingProgram, "sRSMFlux" ), 2 );
+	glUniform1i( glGetUniformLocation( renderingProgram, "sRSMDepth" ), 3 );
 
 	////////////////////////////////// Generating random samples in a unit disk ////////////////////////////////////////
 
@@ -457,7 +457,7 @@ int main( int argc, const char * argv[] )
 	}
 
 	// Send samples to rendering fragment shader.
-	glUniform2fv( glGetUniformLocation( renderingProgram, "rsmSamplePositions" ), N_SAMPLES, rsmSamples.data() );
+	glUniform2fv( glGetUniformLocation( renderingProgram, "RSMSamplePositions" ), N_SAMPLES, rsmSamples.data() );
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	

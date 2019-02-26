@@ -280,8 +280,8 @@ void OpenGL::drawGeom( const mat44& Projection, const mat44& Camera, const mat44
 		glBindBuffer( GL_ARRAY_BUFFER, (*G)->bufferID );
 	
 	// Set up our vertex attributes.
-	int position_location = glGetAttribLocation( renderingProgram, "position" );
-	int normal_location = glGetAttribLocation( renderingProgram, "normal" );
+	int position_location = glGetAttribLocation( renderingProgram, "aPosition" );
+	int normal_location = glGetAttribLocation( renderingProgram, "aNormal" );
 	if( position_location >= 0 )
 	{
 		glEnableVertexAttribArray( position_location );
@@ -432,7 +432,7 @@ GLint OpenGL::setSequenceInformation( const mat44& Projection, const mat44& Came
 	glBufferData( GL_ARRAY_BUFFER, size, vertexPositions, GL_DYNAMIC_DRAW );
 
 	// Set up our vertex attributes (no normals needed).
-	int position_location = glGetAttribLocation( renderingProgram, "position" );
+	int position_location = glGetAttribLocation( renderingProgram, "aPosition" );
 	if( position_location >= 0 )
 	{
 		glEnableVertexAttribArray( position_location );
@@ -468,9 +468,9 @@ void OpenGL::render3DObject( const mat44& Projection, const mat44& Camera, const
 		glBindBuffer( GL_ARRAY_BUFFER, o.getBufferID() );
 
 		// Set up our vertex (and texture) attributes.
-		GLint position_location = glGetAttribLocation( renderingProgram, "position" );
-		GLint normal_location = glGetAttribLocation( renderingProgram, "normal" );
-		GLint texCoords_location = glGetAttribLocation( renderingProgram, "texCoords" );
+		GLint position_location = glGetAttribLocation( renderingProgram, "aPosition" );
+		GLint normal_location = glGetAttribLocation( renderingProgram, "aNormal" );
+		GLint texCoords_location = glGetAttribLocation( renderingProgram, "aTexCoords" );
 		if( position_location != -1 )		// Need to have at least the vertices positions to render.
 		{
 			glEnableVertexAttribArray( position_location );

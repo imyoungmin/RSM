@@ -1,8 +1,8 @@
 #version 410 core
 
-layout (location = 0) out vec3 oPosition;				// Output to attachements for positions and normals in world space.
-layout (location = 1) out vec3 oNormal;
-layout (location = 2) out vec3 oFlux;					// Output to attachement for flux.
+layout (location = 0) out vec3 TexRSMPosition;			// Output to attachements for positions and normals in world space.
+layout (location = 1) out vec3 TexRSMNormal;
+layout (location = 2) out vec3 TexRSMFlux;				// Output to attachement for flux.
 
 // We need almost all variables from normal shading to calculate the flux.
 uniform vec3 lightColor;								// Only RGB.
@@ -13,16 +13,16 @@ uniform bool drawPoint;
 uniform sampler2D objectTexture;						// 3D object texture (must be a blurred texture)
 in vec2 oTexCoords;
 
-in vec3 gPosition;										// Inputs from vertex shader, in world space.
-in vec3 gNormal;
+in vec3 oRSMPosition;									// Inputs from vertex shader, in world space.
+in vec3 oRSMNormal;
 
 void main( void )
 {
 	// Store the fragment position vector in the first RSM buffer texture.
-	oPosition = gPosition;
+	TexRSMPosition = oRSMPosition;
 
 	// Store the per-fragment normal into second RSM buffer texture.
-	oNormal = normalize( gNormal );
+	TexRSMNormal = normalize( oRSMNormal );
 
     // Determining the flux: it's the product of color light with material's albedo (i.e. diffuse component).
     // Ignore alpha or transparency.
@@ -33,10 +33,10 @@ void main( void )
 		if( dot( gl_PointCoord - 0.5, gl_PointCoord - 0.5 ) > 0.25 )		// For rounded points.
 			discard;
 		else
-			oFlux = color;
+			TexRSMFlux = color;
 	}
 	else
-		oFlux = color;
+		TexRSMFlux = color;
 
 	// The depth is writtin automatically.
 	// gl_FragDepth = gl_FragCoord.z;
