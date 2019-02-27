@@ -476,8 +476,7 @@ int main( int argc, const char * argv[] )
 	glGenFramebuffers( 1, &gBuffer );
 	glBindFramebuffer( GL_FRAMEBUFFER, gBuffer );
 	GLuint gPosition, gNormal, gAlbedoSpecular;						// Texture IDs for different targets of G-Buffer.
-	GLuint gUseBlinnPhong;											// TODO: Need to be sent too.
-	GLuint gLSPosition;
+	GLuint gPosLightSpace;											// This one in particular sends the position in projective light space + use Phong shading flag.
 
 	// World space position color buffer.
 	glGenTextures( 1, &gPosition );
@@ -503,13 +502,13 @@ int main( int argc, const char * argv[] )
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gAlbedoSpecular, 0 );	// Attachment 2.
 
-	// Using Blinn-Phong flag color buffer.
-	glGenTextures( 1, &gUseBlinnPhong );
-	glBindTexture( GL_TEXTURE_2D, gUseBlinnPhong );
-	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, fbWidth, fbHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr );
+	// Position in Light Space + Using Blinn-Phong flag color buffer.
+	glGenTextures( 1, &gPosLightSpace );
+	glBindTexture( GL_TEXTURE_2D, gPosLightSpace );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gUseBlinnPhong, 0 );	// Attachment 3.
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gPosLightSpace, 0 );	// Attachment 3.
 
 	// Tell OpenGL which color attachments we'll use (of this framebuffer) for rendering.
 	GLuint gAttachments[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
@@ -532,7 +531,7 @@ int main( int argc, const char * argv[] )
 	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGPosition" ), 0 );						// G-Buffer samplers begin at texture unit 0.
 	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGNormal" ), 1 );
 	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGAlbedoSpecular" ), 2 );
-	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGUseBlinnPhong" ), 3 );
+	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGPosLightSpace" ), 3 );
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -587,14 +586,14 @@ int main( int argc, const char * argv[] )
 		///////////////////////////////////////// Define new lights' positions /////////////////////////////////////////
 		
 		if( gRotatingLights )								// Check if rotating lights is enabled (with key 'L').
-				gLight.rotateBy( static_cast<float>( 0.01 * M_PI ) );
+			gLight.rotateBy( static_cast<float>( 0.01 * M_PI ) );
 
-		////////////////////////////////// First pass: render scene to RSM textures ////////////////////////////////////
-		
-/*		ogl.useProgram( generateRSMProgram );				// Now, create the reflective shadow map textures.
 		mat44 LightView = Tx::lookAt( gLight.position, gPointOfInterest, Tx::Y_AXIS );
 		gLight.SpaceMatrix = gLight.Projection * LightView;
 
+		////////////////////////////////// First pass: render scene to RSM textures ////////////////////////////////////
+
+/*		ogl.useProgram( generateRSMProgram );				// Now, create the reflective shadow map textures.
 		glViewport( 0, 0, RSM_SIDE_LENGTH, RSM_SIDE_LENGTH );
 		glBindFramebuffer( GL_FRAMEBUFFER, gLight.rsmFBO );
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
@@ -626,7 +625,7 @@ int main( int argc, const char * argv[] )
 		glActiveTexture( GL_TEXTURE2 );
 		glBindTexture( GL_TEXTURE_2D, gAlbedoSpecular );	// Albedo + specular shininess.
 		glActiveTexture( GL_TEXTURE3 );
-		glBindTexture( GL_TEXTURE_2D, gUseBlinnPhong );		// Flag for using Blinn-Phong reflectance model.
+		glBindTexture( GL_TEXTURE_2D, gPosLightSpace );		// Flag for using Blinn-Phong reflectance model.
 
 		ogl.setLighting( gLight, Camera, false );			// Send light properties (in world space).
 		Tx::toOpenGLMatrix( eyePosition_vector, gEye );

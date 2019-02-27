@@ -8,7 +8,7 @@ in vec2 oTexCoords;
 uniform sampler2D sGPosition;
 uniform sampler2D sGNormal;
 uniform sampler2D sGAlbedoSpecular;
-uniform sampler2D sGUseBlinnPhong;
+uniform sampler2D sGPosLightSpace;
 
 uniform vec4 lightPosition;								// In world space.
 uniform vec3 lightColor;								// Only RGB.
@@ -22,9 +22,10 @@ void main()
 	vec3 ambientColor = diffuseColor * 0.1;
 	float shininess = texture( sGAlbedoSpecular, oTexCoords ).a;
 	vec3 position = texture( sGPosition, oTexCoords ).rgb;
-	bool useBlinnPhong = texture( sGUseBlinnPhong, oTexCoords ).r != 0;
+	vec3 projFrag = texture( sGPosLightSpace, oTexCoords ).rgb;
+	bool useBlinnPhong = texture( sGPosLightSpace, oTexCoords ).a != 0.0;
 
-	if( useBlinnPhong )												// Use Blinn-Phone reflectance model?
+	if( useBlinnPhong )												// Use Blinn-Phong reflectance model?
 	{
 		vec3 N = normalize( texture( sGNormal, oTexCoords ).rgb );
 		vec3 E = normalize( eyePosition - position );				// View direction.
