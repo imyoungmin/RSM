@@ -358,9 +358,14 @@ int main( int argc, const char * argv[] )
 	GLuint renderingProgram = shaders.compile( conf::SHADERS_FOLDER + "render.vert", conf::SHADERS_FOLDER + "render.frag" );
 	cout << "Done!" << endl;
 	
-	// Initialize shaders program for shadow mapping.
-	cout << "Initializing shadow mapping shaders... ";
-	GLuint shadowMapProgram = shaders.compile( conf::SHADERS_FOLDER + "generateRSM.vert", conf::SHADERS_FOLDER + "generateRSM.frag" );
+	// Initialize shaders program for reflective shadow maps.
+	cout << "Initializing reflective shadow maps shaders... ";
+	GLuint rsmProgram = shaders.compile( conf::SHADERS_FOLDER + "generateRSM.vert", conf::SHADERS_FOLDER + "generateRSM.frag" );
+	cout << "Done!" << endl;
+
+	// Initialize shaders for deferred shading.
+	cout << "Initializing deferred shading shaders... ";
+	GLuint deferredShadingProgram = shaders.compile( conf::SHADERS_FOLDER + "deferredShading.vert", conf::SHADERS_FOLDER + "deferredShading.frag" );
 	cout << "Done!" << endl;
 	
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
@@ -470,12 +475,6 @@ int main( int argc, const char * argv[] )
 	glDepthFunc( GL_LEQUAL );
 	glFrontFace( GL_CCW );
 
-	// Frame rate variables.
-	long gNewTicks = duration_cast<milliseconds>( system_clock::now().time_since_epoch() ).count();
-	long gOldTicks = gNewTicks;
-	float transcurredTimePerFrame;
-	string FPS = "FPS: ";
-
 	ogl.setUsingUniformScaling( false );
 	ogl.create3DObject( "mercury", "mercury.obj" );
 	ogl.create3DObject( "bunny", "bunny.obj" );
@@ -483,7 +482,12 @@ int main( int argc, const char * argv[] )
 	float eyeY = gEye[1];										// Build eye components from its intial value.
 	float eyeXZRadius = sqrt( gEye[0]*gEye[0] + gEye[2]*gEye[2] );
 	float eyeAngle = atan2( gEye[0], gEye[2] );
-	
+
+	// Frame rate variables.
+	long gNewTicks, gOldTicks = duration_cast<milliseconds>( system_clock::now().time_since_epoch() ).count();
+	float transcurredTimePerFrame;
+	string FPS = "FPS: ";
+
 	// Rendering loop.
 	while( !glfwWindowShouldClose( window ) )
 	{
@@ -506,10 +510,10 @@ int main( int argc, const char * argv[] )
 		
 		if( gRotatingLights )								// Check if rotating lights is enabled (with key 'L').
 				gLight.rotateBy( static_cast<float>( 0.01 * M_PI ) );
+
+		////////////////////////////////// First pass: render scene to RSM textures ////////////////////////////////////
 		
-		//////////////////////////////////// First pass: render scene to depth maps ////////////////////////////////////
-		
-		ogl.useProgram( shadowMapProgram );					// Set shadow map writing program.
+		ogl.useProgram( rsmProgram );						// Now, create the reflective shadow map textures.
 		mat44 LightView = Tx::lookAt( gLight.position, gPointOfInterest, Tx::Y_AXIS );
 		gLight.SpaceMatrix = gLight.Projection * LightView;
 
@@ -548,6 +552,9 @@ int main( int argc, const char * argv[] )
 		// Set and send the lighting properties.
 		ogl.setLighting( gLight, Camera );
 		renderScene( Proj, Camera, Model, currentTime );
+
+		ogl.useProgram( deferredShadingProgram );
+		ogl.renderNDCQuad();
 
 		/////////////////////////////////////////////// Rendering text /////////////////////////////////////////////////
 

@@ -12,6 +12,9 @@ OpenGL::~OpenGL()
 {
 	glDeleteVertexArrays( 1, &vao );
 	glDeleteProgram( glyphsProgram );
+
+	// TODO: Delete geometry buffers.
+
 }
 
 /**
@@ -676,6 +679,56 @@ void OpenGL::setLighting( const Light& light, const mat44& View )
 		Tx::toOpenGLMatrix( lightColor_vector, light.color );
 		glUniform3fv( lightColor_location, 1, lightColor_vector );
 	}
+}
+
+/**
+ * Render a 1x1 normalized device coordinates quad.
+ * Its colors come from texture coordinates.
+ */
+void OpenGL::renderNDCQuad()
+{
+	if( ndcQuad == nullptr )				// No data yet loaded into the buffer?
+	{
+		ndcQuad = new GeometryBuffer();
+		glGenBuffers( 1, &(ndcQuad->bufferID) );
+		glBindBuffer( GL_ARRAY_BUFFER, ndcQuad->bufferID );
+
+		float quadVertices[] = {
+			// Positions        // Texture coordinates
+			-1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+			-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+			 1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+			 1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+		};
+
+		// Store data.
+		glBufferData( GL_ARRAY_BUFFER, sizeof( quadVertices ), quadVertices, GL_STATIC_DRAW );
+		ndcQuad->verticesCount = 4;
+	}
+	else									// Data is already there; just make bufferID the active buffer.
+		glBindBuffer( GL_ARRAY_BUFFER, ndcQuad->bufferID );
+
+	// Set up our vertex attributes.
+	int position_location = glGetAttribLocation( renderingProgram, "aPosition" );
+	int texCoords_location = glGetAttribLocation( renderingProgram, "aTexCoords" );
+	if( position_location != -1 && texCoords_location != -1 )
+	{
+		glEnableVertexAttribArray( position_location );			// In this case we have a stride value.
+		glVertexAttribPointer( position_location, ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 5 * sizeof(float), BUFFER_OFFSET( 0 ) );
+		glEnableVertexAttribArray( texCoords_location );
+		glVertexAttribPointer( texCoords_location, TEX_ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 5 * sizeof(float), BUFFER_OFFSET( 3 * sizeof(float) ) );
+
+		// Draw a triangle strip.
+		glDrawArrays( GL_TRIANGLE_STRIP, 0, ndcQuad->verticesCount );
+
+		// Disable attributes.
+		glDisableVertexAttribArray( position_location );
+		glDisableVertexAttribArray( texCoords_location );
+	}
+
+	// Draw a triangle strip.
+	glDrawArrays( GL_TRIANGLE_STRIP, 0, ndcQuad->verticesCount );
+
 }
 
 

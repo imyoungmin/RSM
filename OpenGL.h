@@ -58,13 +58,14 @@ private:
 	enum GeometryTypes { CUBE, SPHERE, CYLINDER, PRISM };
 	
 	GLuint renderingProgram;					// Geom/sequence full color renderer's shader program.
-	GLuint vao;									// Vertex array object.
+	GLuint vao;									// Vertex array object for usual data layout.
 	
 	GeometryBuffer* cube = nullptr;				// Buffers for solids.
 	GeometryBuffer* sphere = nullptr;
 	GeometryBuffer* cylinder = nullptr;
 	GeometryBuffer* prism = nullptr;
 	GeometryBuffer* path = nullptr;				// Buffer for dots and paths (sequences).
+	GeometryBuffer* ndcQuad = nullptr;			// Normalized device coordinates quad.
 
 	bool usingUniformScaling = true;			// True if only uniform scaling is used.
 
@@ -106,6 +107,7 @@ public:
 	void drawPath( const mat44& Projection, const mat44& Camera, const mat44& Model, const vector<vec3>& vertices );
 	void drawPoints( const mat44& Projection, const mat44& Camera, const mat44& Model, const vector<vec3>& vertices, float size = 10.0f );
 	void render3DObject( const mat44& Projection, const mat44& Camera, const mat44& Model, const char* objectType, bool useTexture = false, int textureUnit = 1 );
+	void renderNDCQuad();
 	void renderText( const char* text, const Atlas* a, float x, float y, float sx, float sy, const float* color );
 	GLuint getGlyphsProgram();
 	void setUsingUniformScaling( bool u );
