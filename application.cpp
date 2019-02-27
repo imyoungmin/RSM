@@ -476,8 +476,10 @@ int main( int argc, const char * argv[] )
 	glGenFramebuffers( 1, &gBuffer );
 	glBindFramebuffer( GL_FRAMEBUFFER, gBuffer );
 	GLuint gPosition, gNormal, gAlbedoSpecular;						// Texture IDs for different targets of G-Buffer.
+	GLuint useBlinnPhong;											// TODO: Need to be sent too.
+	GLuint gLSPosition;
 
-	// Position color buffer.
+	// World space position color buffer.
 	glGenTextures( 1, &gPosition );
 	glBindTexture( GL_TEXTURE_2D, gPosition );
 	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );
@@ -485,7 +487,7 @@ int main( int argc, const char * argv[] )
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gPosition, 0 );		// Attachment 0.
 
-	// Normal color buffer.
+	// World space normal color buffer.
 	glGenTextures( 1, &gNormal );
 	glBindTexture( GL_TEXTURE_2D, gNormal );
 	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );
@@ -502,7 +504,7 @@ int main( int argc, const char * argv[] )
 	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gAlbedoSpecular, 0 );	// Attachment 2.
 
 	// Tell OpenGL which color attachments we'll use (of this framebuffer) for rendering.
-	GLuint gAttachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+	GLuint gAttachments[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
 	glDrawBuffers( 3, gAttachments );
 
 	// Create and attach depth buffer (renderbuffer).
@@ -519,7 +521,7 @@ int main( int argc, const char * argv[] )
 
 	// Set uniforms in deferred rendering program.
 	ogl.useProgram( deferredShadingProgram );
-	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGPosition" ), 0 );			// G-Buffer samplers begin at texture unit 0.
+	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGPosition" ), 0 );						// G-Buffer samplers begin at texture unit 0.
 	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGNormal" ), 1 );
 	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGAlbedoSpecular" ), 2 );
 	
@@ -541,6 +543,7 @@ int main( int argc, const char * argv[] )
 	float eyeY = gEye[1];										// Build eye components from its intial value.
 	float eyeXZRadius = sqrt( gEye[0]*gEye[0] + gEye[2]*gEye[2] );
 	float eyeAngle = atan2( gEye[0], gEye[2] );
+	float eyePosition_vector[ELEMENTS_PER_VERTEX];				// Container for eye position sent to shaders.
 
 	// Frame rate variables.
 	long gNewTicks, gOldTicks = duration_cast<milliseconds>( system_clock::now().time_since_epoch() ).count();
@@ -613,11 +616,11 @@ int main( int argc, const char * argv[] )
 		glBindTexture( GL_TEXTURE_2D, gNormal );			// Normals.
 		glActiveTexture( GL_TEXTURE2 );
 		glBindTexture( GL_TEXTURE_2D, gAlbedoSpecular );	// Albedo + specular shininess.
+		glActiveTexture( GL_TEXTURE3 );
 
-		ogl.setLighting( gLight, Camera );					// Send light properties.
-		float view_matrix[ELEMENTS_PER_MATRIX];
-		Tx::toOpenGLMatrix( view_matrix, Camera );
-		glUniformMatrix4fv( glGetUniformLocation( deferredShadingProgram, "View"), 1, GL_FALSE, view_matrix );
+		ogl.setLighting( gLight, Camera, false );			// Send light properties (in world space).
+		Tx::toOpenGLMatrix( eyePosition_vector, gEye );
+		glUniform3fv( glGetUniformLocation( renderingProgram, "eyePosition" ), 1, eyePosition_vector );
 		ogl.renderNDCQuad();								// Render lit scene into a unit NDC quad.
 
 		//////////////////////////////// Second pass: render scene with shadow mapping /////////////////////////////////

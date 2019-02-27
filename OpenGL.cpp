@@ -645,9 +645,9 @@ void OpenGL::useProgram( GLuint program )
  * Set and send the lighting properties to shaders attached to current rendering program.
  * @param light Light object.
  * @param View The 4x4 view transformation matrix (usually the camera matrix).
- * @param useUnitSuffix Wheter attach light index as suffix to shader uniform variables.
+ * @param lightInViewCoordinates Whether the light position should be sent in view/camera coordinates.
  */
-void OpenGL::setLighting( const Light& light, const mat44& View )
+void OpenGL::setLighting( const Light& light, const mat44& View, bool lightInViewCoordinates )
 {
 	string lightSpaceMatrixStr = "LightSpaceMatrix";
 	string lightPositionStr = "lightPosition";
@@ -667,7 +667,10 @@ void OpenGL::setLighting( const Light& light, const mat44& View )
 	if( lightSource_location >= 0 )
 	{
 		float ls_vector[HOMOGENEOUS_VECTOR_SIZE];
-		Tx::toOpenGLMatrix( ls_vector, View * vec4{ light.position[0], light.position[1], light.position[2], 1.0 } );		// We must send the light position in view coordinates.
+		if( lightInViewCoordinates ) 	// Shall we send the light position in view coordinates?
+			Tx::toOpenGLMatrix( ls_vector, View * vec4{ light.position[0], light.position[1], light.position[2], 1.0 } );
+		else
+			Tx::toOpenGLMatrix( ls_vector, { light.position[0], light.position[1], light.position[2], 1.0 } );
 		glUniform4fv( lightSource_location, 1, ls_vector );
 	}
 	
