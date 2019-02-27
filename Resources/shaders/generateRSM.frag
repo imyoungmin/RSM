@@ -26,7 +26,7 @@ void main( void )
 
     // Determining the flux: it's the product of color light with material's albedo (i.e. diffuse component).
     // Ignore alpha or transparency.
-    vec3 color = ((useTexture)? texture( objectTexture, oTexCoords ).rgb * diffuse.rgb : diffuse.rgb) * lightColor;
+    vec3 color = ((useTexture)? texture( objectTexture, oTexCoords ).rgb : diffuse.rgb) * lightColor;
 
 	if( drawPoint )
 	{

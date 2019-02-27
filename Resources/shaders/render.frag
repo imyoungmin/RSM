@@ -198,7 +198,7 @@ vec3 shade( vec3 projFrag, vec3 N, vec3 E, vec3 gN, vec3 gP )
 		
 		// Diffuse component.
 		float cDiff = max( incidence, 0.0 );
-		diffuseColor = cDiff * ( (useTexture)? texture( objectTexture, oTexCoords ).rgb * diffuseColor : diffuseColor );
+		diffuseColor = cDiff * ( (useTexture)? texture( objectTexture, oTexCoords ).rgb : diffuseColor );
 		
 		// Specular component.
 		if( incidence > 0 && shininess > 0.0 )		// Negative shininess turns off specular component.

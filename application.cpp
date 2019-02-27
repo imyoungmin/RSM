@@ -352,21 +352,25 @@ int main( int argc, const char * argv[] )
 	
 	ogl.init();
 	
-	// Initialize shaders for geom/sequence drawing program.
-	cout << "Initializing rendering shaders... ";
+	// Compile shaders for geom/sequence drawing program.
+	cout << "Compiling rendering shaders... ";
 	Shaders shaders;
 	GLuint renderingProgram = shaders.compile( conf::SHADERS_FOLDER + "render.vert", conf::SHADERS_FOLDER + "render.frag" );
 	cout << "Done!" << endl;
 	
-	// Initialize shaders program for reflective shadow maps.
-	cout << "Initializing reflective shadow maps shaders... ";
-	GLuint rsmProgram = shaders.compile( conf::SHADERS_FOLDER + "generateRSM.vert", conf::SHADERS_FOLDER + "generateRSM.frag" );
+	// Compile shaders program for reflective shadow maps.
+	cout << "Compiling reflective shadow maps generator shaders... ";
+	GLuint generateRSMProgram = shaders.compile( conf::SHADERS_FOLDER + "generateRSM.vert", conf::SHADERS_FOLDER + "generateRSM.frag" );
 	cout << "Done!" << endl;
 
-	// Initialize shaders for deferred shading.
-	cout << "Initializing deferred shading shaders... ";
+	// Compile shaders for deferred shading.
+	cout << "Compiling deferred shading shaders... ";
 	GLuint deferredShadingProgram = shaders.compile( conf::SHADERS_FOLDER + "deferredShading.vert", conf::SHADERS_FOLDER + "deferredShading.frag" );
 	cout << "Done!" << endl;
+
+	// Compile shaders program for G-buffer.
+	cout << "Compiling G-Buffer generator shaders... ";
+	GLuint generateGBufferProgram = shaders.compile( conf::SHADERS_FOLDER + "generateGBuffer.vert", conf::SHADERS_FOLDER + "generateGBuffer.frag" );
 	
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
 	
@@ -462,7 +466,55 @@ int main( int argc, const char * argv[] )
 	}
 
 	// Send samples to rendering fragment shader.
+	glUseProgram( renderingProgram );
 	glUniform2fv( glGetUniformLocation( renderingProgram, "RSMSamplePositions" ), N_SAMPLES, rsmSamples.data() );
+
+	////////////////////////////////// Setting up deferred rendering in a G-Buffer /////////////////////////////////////
+
+	GLuint gBuffer;
+	glGenFramebuffers( 1, &gBuffer );
+	glBindFramebuffer( GL_FRAMEBUFFER, gBuffer );
+	GLuint gPosition, gNormal, gAlbedoSpecular;						// Texture IDs for different targets of G-Buffer.
+
+	// Position color buffer.
+	glGenTextures( 1, &gPosition );
+	glBindTexture( GL_TEXTURE_2D, gPosition );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gPosition, 0 );		// Attachment 0.
+
+	// Normal color buffer.
+	glGenTextures( 1, &gNormal );
+	glBindTexture( GL_TEXTURE_2D, gNormal );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gNormal, 0 );			// Attachment 1.
+
+	// RGB diffuse color and specular color buffer.
+	glGenTextures( 1, &gAlbedoSpecular );
+	glBindTexture( GL_TEXTURE_2D, gAlbedoSpecular );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA16F, fbWidth, fbHeight, 0, GL_RGBA, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gAlbedoSpecular, 0 );	// Attachment 2.
+
+	// Tell OpenGL which color attachments we'll use (of this framebuffer) for rendering.
+	GLuint gAttachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+	glDrawBuffers( 3, gAttachments );
+
+	// Create and attach depth buffer (renderbuffer).
+	GLuint rboDepth;									// We want a full render buffer object.
+	glGenRenderbuffers(1, &rboDepth);
+	glBindRenderbuffer( GL_RENDERBUFFER, rboDepth );
+	glRenderbufferStorage( GL_RENDERBUFFER, GL_DEPTH_COMPONENT, fbWidth, fbHeight );
+	glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth );		// Attach a render buffer to currently bound frame buffer object.
+
+	// Check that the framebuffer is complete.
+	if( glCheckFramebufferStatus( GL_FRAMEBUFFER ) != GL_FRAMEBUFFER_COMPLETE )
+		cerr << "[Deferred Rendering] Framebuffer not complete!" << endl;
+	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -513,7 +565,7 @@ int main( int argc, const char * argv[] )
 
 		////////////////////////////////// First pass: render scene to RSM textures ////////////////////////////////////
 		
-		ogl.useProgram( rsmProgram );						// Now, create the reflective shadow map textures.
+		ogl.useProgram( generateRSMProgram );				// Now, create the reflective shadow map textures.
 		mat44 LightView = Tx::lookAt( gLight.position, gPointOfInterest, Tx::Y_AXIS );
 		gLight.SpaceMatrix = gLight.Projection * LightView;
 
@@ -523,7 +575,7 @@ int main( int argc, const char * argv[] )
 
 		ogl.setLighting( gLight, LightView );
 		renderScene( LightProjection, LightView, Model, currentTime );
-		glBindFramebuffer( GL_FRAMEBUFFER, 0 );			// Unbind: return control to normal draw framebuffer.
+		glBindFramebuffer( GL_FRAMEBUFFER, 0 );				// Unbind: return control to normal draw framebuffer.
 
 		//////////////////////////////// Second pass: render scene with shadow mapping /////////////////////////////////
 
@@ -553,8 +605,8 @@ int main( int argc, const char * argv[] )
 		ogl.setLighting( gLight, Camera );
 		renderScene( Proj, Camera, Model, currentTime );
 
-		ogl.useProgram( deferredShadingProgram );
-		ogl.renderNDCQuad();
+//		ogl.useProgram( deferredShadingProgram );
+//		ogl.renderNDCQuad();
 
 		/////////////////////////////////////////////// Rendering text /////////////////////////////////////////////////
 
