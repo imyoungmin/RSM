@@ -270,7 +270,6 @@ void renderScene( const mat44& Projection, const mat44& View, const mat44& Model
 	// Statue.
 	ogl.setColor( 0.65, 0.65, 0.65, 1.0, -1.0f );
 	ogl.render3DObject( Projection, View, Model * Tx::translate( -0.5, 0.0, -2.0 ) * Tx::rotate( 5.0 * M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 1.35 ), "mercury" );
-//	ogl.render3DObject( Projection, View, Model * Tx::translate( 0.6, 0.4, -1.0 ) * Tx::scale( 1.4 ), "bunny" );
 
 	// Left wall.
 	ogl.setColor( 0.8941, 0.0, 0.4862, 1.0, -1.0f );
@@ -361,11 +360,6 @@ int main( int argc, const char * argv[] )
 	// Compile shaders program for reflective shadow maps.
 	cout << "Compiling reflective shadow maps generator shaders... ";
 	GLuint generateRSMProgram = shaders.compile( conf::SHADERS_FOLDER + "generateRSM.vert", conf::SHADERS_FOLDER + "generateRSM.frag" );
-	cout << "Done!" << endl;
-
-	// Compile shaders for deferred shading.
-	cout << "Compiling deferred shading shaders... ";
-	GLuint deferredShadingProgram = shaders.compile( conf::SHADERS_FOLDER + "deferredShading.vert", conf::SHADERS_FOLDER + "deferredShading.frag" );
 	cout << "Done!" << endl;
 
 	// Compile shaders program for G-buffer.
@@ -527,11 +521,11 @@ int main( int argc, const char * argv[] )
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 
 	// Set uniforms in deferred rendering program.
-	ogl.useProgram( deferredShadingProgram );
-	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGPosition" ), 0 );						// G-Buffer samplers begin at texture unit 0.
-	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGNormal" ), 1 );
-	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGAlbedoSpecular" ), 2 );
-	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGPosLightSpace" ), 3 );
+	ogl.useProgram( renderingProgram );
+	glUniform1i( glGetUniformLocation( renderingProgram, "sGPosition" ), 4 );						// G-Buffer samplers begin at texture unit 4.
+	glUniform1i( glGetUniformLocation( renderingProgram, "sGNormal" ), 5 );
+	glUniform1i( glGetUniformLocation( renderingProgram, "sGAlbedoSpecular" ), 6 );
+	glUniform1i( glGetUniformLocation( renderingProgram, "sGPosLightSpace" ), 7 );
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -546,7 +540,6 @@ int main( int argc, const char * argv[] )
 
 	ogl.setUsingUniformScaling( false );
 	ogl.create3DObject( "mercury", "mercury.obj" );
-	ogl.create3DObject( "bunny", "bunny.obj" );
 	
 	float eyeY = gEye[1];										// Build eye components from its intial value.
 	float eyeXZRadius = sqrt( gEye[0]*gEye[0] + gEye[2]*gEye[2] );
@@ -585,7 +578,7 @@ int main( int argc, const char * argv[] )
 		
 		///////////////////////////////////////// Define new lights' positions /////////////////////////////////////////
 		
-		if( gRotatingLights )								// Check if rotating lights is enabled (with key 'L').
+		if( gRotatingLights )										// Check if rotating lights is enabled (with key 'L').
 			gLight.rotateBy( static_cast<float>( 0.01 * M_PI ) );
 
 		mat44 LightView = Tx::lookAt( gLight.position, gPointOfInterest, Tx::Y_AXIS );
@@ -593,48 +586,58 @@ int main( int argc, const char * argv[] )
 
 		////////////////////////////////// First pass: render scene to RSM textures ////////////////////////////////////
 
-/*		ogl.useProgram( generateRSMProgram );				// Now, create the reflective shadow map textures.
+		ogl.useProgram( generateRSMProgram );						// Now, create the reflective shadow map textures.
 		glViewport( 0, 0, RSM_SIDE_LENGTH, RSM_SIDE_LENGTH );
 		glBindFramebuffer( GL_FRAMEBUFFER, gLight.rsmFBO );
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 		ogl.setLighting( gLight, LightView );
 		renderScene( LightProjection, LightView, Model, currentTime );
-		glBindFramebuffer( GL_FRAMEBUFFER, 0 );				// Unbind: return control to normal draw framebuffer.
-*/
+		glBindFramebuffer( GL_FRAMEBUFFER, 0 );						// Unbind: return control to normal draw framebuffer.
+
 		/////////////////////////////// Second pass: render scene to G-Buffer textures /////////////////////////////////
 
 		glViewport( 0, 0, fbWidth, fbHeight );
 		glBindFramebuffer( GL_FRAMEBUFFER, gBuffer );
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 		ogl.useProgram( generateGBufferProgram );
-		ogl.setLighting( gLight, Camera );					// Send light position and color.
+		ogl.setLighting( gLight, Camera );							// Send light position and color.
 		renderScene( Proj, Camera, Model, currentTime );
-		glBindFramebuffer( GL_FRAMEBUFFER, 0 );				// Unbind: return control to normal draw framebuffer.
+		glBindFramebuffer( GL_FRAMEBUFFER, 0 );						// Unbind: return control to normal draw framebuffer.
 
-		///////////////////////////// Third pass: lighting pass using G-buffer textures ////////////////////////////////
+		///////////////////////// Third pass: lighting pass using G-buffer and RSM textures ////////////////////////////
 
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-		ogl.useProgram( deferredShadingProgram );
+		ogl.useProgram( renderingProgram );							// Using deferred rendering: shade scene.
+
+		// Enable reflective shadow map texture samplers.
+		glActiveTexture( GL_TEXTURE0 );								// Positions.
+		glBindTexture( GL_TEXTURE_2D, gLight.rsmPosition );
+		glActiveTexture( GL_TEXTURE1 );								// Normals.
+		glBindTexture( GL_TEXTURE_2D, gLight.rsmNormal );
+		glActiveTexture( GL_TEXTURE2 );								// Flux.
+		glBindTexture( GL_TEXTURE_2D, gLight.rsmFlux );
+		glActiveTexture( GL_TEXTURE3 );								// Depth.
+		glBindTexture( GL_TEXTURE_2D, gLight.rsmDepth );
 
 		// Enable G-Buffer textures.
-		glActiveTexture( GL_TEXTURE0 );
-		glBindTexture( GL_TEXTURE_2D, gPosition );			// Positions.
-		glActiveTexture( GL_TEXTURE1 );
-		glBindTexture( GL_TEXTURE_2D, gNormal );			// Normals.
-		glActiveTexture( GL_TEXTURE2 );
-		glBindTexture( GL_TEXTURE_2D, gAlbedoSpecular );	// Albedo + specular shininess.
-		glActiveTexture( GL_TEXTURE3 );
-		glBindTexture( GL_TEXTURE_2D, gPosLightSpace );		// Flag for using Blinn-Phong reflectance model.
+		glActiveTexture( GL_TEXTURE4 );
+		glBindTexture( GL_TEXTURE_2D, gPosition );					// Positions.
+		glActiveTexture( GL_TEXTURE5 );
+		glBindTexture( GL_TEXTURE_2D, gNormal );					// Normals.
+		glActiveTexture( GL_TEXTURE6 );
+		glBindTexture( GL_TEXTURE_2D, gAlbedoSpecular );			// Albedo + specular shininess.
+		glActiveTexture( GL_TEXTURE7 );
+		glBindTexture( GL_TEXTURE_2D, gPosLightSpace );				// Flag for using Blinn-Phong reflectance model.
 
-		ogl.setLighting( gLight, Camera, false );			// Send light properties (in world space).
+		ogl.setLighting( gLight, Camera, false );					// Send light properties (in world space).
 		Tx::toOpenGLMatrix( eyePosition_vector, gEye );
 		glUniform3fv( glGetUniformLocation( renderingProgram, "eyePosition" ), 1, eyePosition_vector );
-		ogl.renderNDCQuad();								// Render lit scene into a unit NDC quad.
+		ogl.renderNDCQuad();										// Render lit scene into a unit NDC quad.
 
 		//////////////////////////////// Second pass: render scene with shadow mapping /////////////////////////////////
 /*
-		ogl.useProgram( renderingProgram );					// Set usual rendering program.
+		ogl.useProgram( renderingProgram );							// Set usual rendering program.
 		
 		glViewport( 0, 0, fbWidth, fbHeight );
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
@@ -653,8 +656,6 @@ int main( int argc, const char * argv[] )
 		ogl.setLighting( gLight, Camera );
 		renderScene( Proj, Camera, Model, currentTime );
 */
-//		ogl.useProgram( deferredShadingProgram );
-//		ogl.renderNDCQuad();
 
 		/////////////////////////////////////////////// Rendering text /////////////////////////////////////////////////
 

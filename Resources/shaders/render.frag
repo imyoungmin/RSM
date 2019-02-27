@@ -2,7 +2,7 @@
 
 // Reflective shadow maps constants.
 const uint N_SAMPLES = 100;
-const float R_MAX = 0.09;								// Maximum sampling radius.
+const float R_MAX = 0.09;							// Maximum sampling radius.
 const float RSM_INTENSITY = 0.55;
 
 // Percentage closer soft shadow constants.
@@ -13,33 +13,23 @@ const float LIGHT_FRUSTUM_WIDTH = 20.0;
 const float LIGHT_SIZE_UV = (LIGHT_WORLD_SIZE / LIGHT_FRUSTUM_WIDTH);	// Assuming that LIGHT_FRUSTUM_WIDTH = LIGHT_FRUSTUM_HEIGHT.
 
 // Shader variables.
-uniform vec4 lightPosition;								// In camera coordinates.
-uniform vec3 lightColor;								// Only RGB.
+uniform vec2 RSMSamplePositions[N_SAMPLES];			// Array of uniformly-distributed sampling positions in a unit disk.
 
-uniform vec4 ambient, diffuse, specular;				// The [r,g,b,a] ambient, diffuse, and specular material properties, respectively.
-uniform float shininess;
-uniform bool useBlinnPhong;
-uniform bool useTexture;
-uniform bool drawPoint;
+uniform sampler2D sRSMPosition;						// Reflective shadow map textures: positions.
+uniform sampler2D sRSMNormal;						// Normals.
+uniform sampler2D sRSMFlux;							// Flux.
+uniform sampler2D sRSMDepth;						// Depths.
 
-uniform vec2 RSMSamplePositions[N_SAMPLES];				// Array of uniformly-distributed sampling positions in a unit disk.
+uniform sampler2D sGPosition;						// G-Buffer textures: positions.
+uniform sampler2D sGNormal;							// Normals.
+uniform sampler2D sGAlbedoSpecular;					// Object's RGB albedo + specular shininess.
+uniform sampler2D sGPosLightSpace;					// Fragment position in normalized reflective light space + using Blinn-Phong shading flag.
 
-uniform sampler2D sRSMPosition;							// Reflective shadow map textures: positions.
-uniform sampler2D sRSMNormal;							// Normals.
-uniform sampler2D sRSMFlux;								// Flux.
-uniform sampler2D sRSMDepth;							// Depths.
-uniform sampler2D objectTexture;						// 3D object texture.
+in vec2 oTexCoords;									// NDC quad texture coordinates.
 
-in vec3 vPosition;										// Position in view (camera) coordinates.
-in vec3 vNormal;										// Normal vector in view coordinates.
-in vec2 oTexCoords;
-
-in vec3 oPosition;										// Position and normal at this fragment in world space coordinates.
-in vec3 oNormal;
-
-in vec4 fragPosLightSpace;								// Position of fragment in light space (need w component for manual perspective division).
-
-out vec4 color;
+uniform vec4 lightPosition;							// In world space.
+uniform vec3 lightColor;							// Only RGB.
+uniform vec3 eyePosition;							// Viewer position in world space.
 
 // Used for searching and filtering the depth/shadow map.
 const vec2 poissonDisk[PCSS_SAMPLES] = vec2[PCSS_SAMPLES](
@@ -52,6 +42,8 @@ const vec2 poissonDisk[PCSS_SAMPLES] = vec2[PCSS_SAMPLES](
 	vec2(0.81623723, -0.72246694), vec2(0.05209179, -0.96911855), vec2(0.10548147, -0.33657712), vec2(-0.20686522, -0.49231428),
 	vec2(0.97070736, -0.24451268), vec2(0.44274798, -0.77235927), vec2(-0.83493721, -0.50384213)
 );
+
+out vec4 color;
 
 ///////////////////////////////////////// Reflective shadow maps functions /////////////////////////////////////////////
 
@@ -174,40 +166,40 @@ float pcss( vec3 projFrag, float incidence )
 ////////////////////////////////////////////////// Shading functions ///////////////////////////////////////////////////
 
 /**
- * Apply color given a selected light and shadow map.
- * @param projFrag Fragment position in normalized projected light space.
- * @param N Normalized normal vector to current fragment (if using Blinn-Phong shading) in camera coordinates.
- * @param E Normalized view direction (if using Blinn-Phong shading) in camera coordinates.
- * @param gN Normalized normal vector in global coordinates.
- * @param gP Position in global coordinates.
- * @return Fragment color (minus ambient component).
+ * Main function.
  */
-vec3 shade( vec3 projFrag, vec3 N, vec3 E, vec3 gN, vec3 gP )
+void main( void )
 {
-	vec3 diffuseColor = diffuse.rgb,
-		 specularColor = specular.rgb;
-	float shadow;
+	// Retrieve data from G-Buffer textures.
+	vec3 diffuseColor = texture( sGAlbedoSpecular, oTexCoords ).rgb,
+		 specularColor = vec3( 0.8, 0.8, 0.8 );
+	vec3 ambientColor = diffuseColor * 0.1;
+	float shininess = texture( sGAlbedoSpecular, oTexCoords ).a;
+	vec3 position = texture( sGPosition, oTexCoords ).rgb;
+	vec3 projFrag = texture( sGPosLightSpace, oTexCoords ).rgb;
+	bool useBlinnPhong = texture( sGPosLightSpace, oTexCoords ).a != 0.0;
 
-	if( useBlinnPhong )
+	float shadow = 0;												// PCSS shadow result for this fragment.
+	if( useBlinnPhong )												// Use Blinn-Phong reflectance model?
 	{
-		vec3 L = normalize( lightPosition.xyz - vPosition );
-		
-		vec3 H = normalize( L + E );
+		vec3 N = normalize( texture( sGNormal, oTexCoords ).rgb );
+		vec3 E = normalize( eyePosition - position );				// View direction.
+		vec3 L = normalize( lightPosition.xyz - position );			// Light direction.
+		vec3 H = normalize( L + E );								// Half vector.
 		float incidence = dot( N, L );
-		
+
 		// Diffuse component.
 		float cDiff = max( incidence, 0.0 );
-		diffuseColor = cDiff * ( (useTexture)? texture( objectTexture, oTexCoords ).rgb : diffuseColor );
-		
+		diffuseColor = cDiff * diffuseColor;
+
 		// Specular component.
-		if( incidence > 0 && shininess > 0.0 )		// Negative shininess turns off specular component.
+		if( incidence > 0 && shininess > 0.0 )						// Negative shininess turns off specular component.
 		{
 			float cSpec = pow( max( dot( N, H ), 0.0 ), shininess );
 			specularColor = cSpec * specularColor;
 		}
 		else
 			specularColor = vec3( 0.0, 0.0, 0.0 );
-		
 		shadow = pcss( projFrag, incidence );
 	}
 	else
@@ -217,44 +209,8 @@ vec3 shade( vec3 projFrag, vec3 N, vec3 E, vec3 gN, vec3 gP )
 	}
 
 	// Calculate indirect lighting using the reflective shadow map.
-	vec3 eColor = indirectLighting( projFrag.xy, gN, gP );
-	
-	// Fragment color with respect to this light (excluding ambient component).
-	return ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * lightColor;
-}
+//	vec3 eColor = indirectLighting( projFrag.xy, N, P );
 
-/**
- * Main function.
- */
-void main( void )
-{
-	vec3 ambientColor = ambient.rgb;		// Ambient component is constant across lights.
-    float alpha = ambient.a;
-	vec3 N, E;								// Unit-length normal and eye direction (only necessary for shading with Blinn-Phong reflectance model).
-	
-	if( useBlinnPhong )
-	{
-		N = normalize( vNormal );
-		E = normalize( -vPosition );
-	}
-
-	// Normalize coordinates of fragment in projected light space.
-	vec3 projFrag = fragPosLightSpace.xyz / fragPosLightSpace.w;	// Perspective division: fragment is in [-1, +1].
-    projFrag = projFrag * 0.5 + 0.5;								// Normalize fragment position to [0, 1].
-
-    vec3 oN = normalize( oNormal );
-    vec3 oP = oPosition/* - 0.0001 * gN*/;								// Avoid the illumination integral singularity (at the joint of walls).
-	
-    // Final fragment color is the sum of light contributions.
-	vec3 totalColor = ambientColor + shade( projFrag, N, E, oN, oP );
-
-    if( drawPoint )
-    {
-        if( dot( gl_PointCoord - 0.5, gl_PointCoord - 0.5 ) > 0.25 )		// For rounded points.
-        	discard;
-        else
-            color = vec4( totalColor, alpha );
-    }
-    else
-        color = vec4( totalColor, alpha );
+	// Fragment color.
+	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor ) * lightColor, 1.0 );
 }
