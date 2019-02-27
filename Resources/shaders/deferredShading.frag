@@ -26,7 +26,7 @@ void main()
 
 	// Get the fragment position and normal in view space coordinates.
 	vec3 vPosition = ( View * vec4( position, 1.0 ) ).xyz;
-	vec3 N = normalize( normal );
+	vec3 N = normalize( mat3( View ) * normal );
 
 	vec3 E = normalize( -vPosition );							// Eye direction in camera coordinates.
 	vec3 L = normalize( lightPosition.xyz - vPosition );		// Light direction in camera coordinates.
