@@ -476,7 +476,7 @@ int main( int argc, const char * argv[] )
 	glGenFramebuffers( 1, &gBuffer );
 	glBindFramebuffer( GL_FRAMEBUFFER, gBuffer );
 	GLuint gPosition, gNormal, gAlbedoSpecular;						// Texture IDs for different targets of G-Buffer.
-	GLuint useBlinnPhong;											// TODO: Need to be sent too.
+	GLuint gUseBlinnPhong;											// TODO: Need to be sent too.
 	GLuint gLSPosition;
 
 	// World space position color buffer.
@@ -503,13 +503,21 @@ int main( int argc, const char * argv[] )
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gAlbedoSpecular, 0 );	// Attachment 2.
 
+	// Using Blinn-Phong flag color buffer.
+	glGenTextures( 1, &gUseBlinnPhong );
+	glBindTexture( GL_TEXTURE_2D, gUseBlinnPhong );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, fbWidth, fbHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gUseBlinnPhong, 0 );	// Attachment 3.
+
 	// Tell OpenGL which color attachments we'll use (of this framebuffer) for rendering.
-	GLuint gAttachments[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
-	glDrawBuffers( 3, gAttachments );
+	GLuint gAttachments[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
+	glDrawBuffers( 4, gAttachments );
 
 	// Create and attach depth buffer (renderbuffer).
 	GLuint rboDepth;									// We want a full render buffer object.
-	glGenRenderbuffers(1, &rboDepth);
+	glGenRenderbuffers( 1, &rboDepth);
 	glBindRenderbuffer( GL_RENDERBUFFER, rboDepth );
 	glRenderbufferStorage( GL_RENDERBUFFER, GL_DEPTH_COMPONENT, fbWidth, fbHeight );
 	glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth );		// Attach a render buffer to currently bound frame buffer object.
@@ -524,6 +532,7 @@ int main( int argc, const char * argv[] )
 	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGPosition" ), 0 );						// G-Buffer samplers begin at texture unit 0.
 	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGNormal" ), 1 );
 	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGAlbedoSpecular" ), 2 );
+	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGUseBlinnPhong" ), 3 );
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -617,6 +626,7 @@ int main( int argc, const char * argv[] )
 		glActiveTexture( GL_TEXTURE2 );
 		glBindTexture( GL_TEXTURE_2D, gAlbedoSpecular );	// Albedo + specular shininess.
 		glActiveTexture( GL_TEXTURE3 );
+		glBindTexture( GL_TEXTURE_2D, gUseBlinnPhong );		// Flag for using Blinn-Phong reflectance model.
 
 		ogl.setLighting( gLight, Camera, false );			// Send light properties (in world space).
 		Tx::toOpenGLMatrix( eyePosition_vector, gEye );
