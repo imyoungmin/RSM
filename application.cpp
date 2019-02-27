@@ -321,7 +321,7 @@ int main( int argc, const char * argv[] )
 	// Create window object (with screen-dependent size metrics).
 	int windowWidth = 768;
 	int windowHeight = 768;
-	window = glfwCreateWindow( windowWidth, windowHeight, "Real-Time Rendering", nullptr, nullptr );
+	window = glfwCreateWindow( windowWidth, windowHeight, "Reflective Shadow Maps", nullptr, nullptr );
 
 	if( !window )
 	{
@@ -371,6 +371,7 @@ int main( int argc, const char * argv[] )
 	// Compile shaders program for G-buffer.
 	cout << "Compiling G-Buffer generator shaders... ";
 	GLuint generateGBufferProgram = shaders.compile( conf::SHADERS_FOLDER + "generateGBuffer.vert", conf::SHADERS_FOLDER + "generateGBuffer.frag" );
+	cout << "Done!" << endl;
 	
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
 	
@@ -443,7 +444,7 @@ int main( int argc, const char * argv[] )
 
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );										// Unbind.
 
-	// Set uniforms in rendering shader.
+	// Set uniforms in rendering program.
 	glUseProgram( renderingProgram );
 	glUniform1i( glGetUniformLocation( renderingProgram, "sRSMPosition" ), 0 );	// Reflective shadow map samplers begin at texture unit 0.
 	glUniform1i( glGetUniformLocation( renderingProgram, "sRSMNormal" ), 1 );
@@ -515,6 +516,12 @@ int main( int argc, const char * argv[] )
 	if( glCheckFramebufferStatus( GL_FRAMEBUFFER ) != GL_FRAMEBUFFER_COMPLETE )
 		cerr << "[Deferred Rendering] Framebuffer not complete!" << endl;
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+
+	// Set uniforms in deferred rendering program.
+	ogl.useProgram( deferredShadingProgram );
+	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGPosition" ), 0 );			// G-Buffer samplers begin at texture unit 0.
+	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGNormal" ), 1 );
+	glUniform1i( glGetUniformLocation( deferredShadingProgram, "sGAlbedoSpecular" ), 2 );
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -543,7 +550,7 @@ int main( int argc, const char * argv[] )
 	// Rendering loop.
 	while( !glfwWindowShouldClose( window ) )
 	{
-		glClearColor( 0.0f, 0.0f, 0.01f, 1.0f );
+		glClearColor( 0.0f, 0.0f, 0.00f, 1.0f );
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 		glEnable( GL_CULL_FACE );
 		
@@ -557,6 +564,13 @@ int main( int argc, const char * argv[] )
 			{ abr[2][0], abr[2][1], abr[2][2], abr[2][3] },
 			{ abr[3][0], abr[3][1], abr[3][2], abr[3][3] } };
 		mat44 Model = ArcBall.t() * Tx::scale( gZoom );
+
+		if( gRotatingCamera )
+		{
+			eyeAngle += 0.01 * M_PI;
+			gEye = { eyeXZRadius * sin( eyeAngle ), eyeY, eyeXZRadius * cos( eyeAngle ) };
+		}
+		mat44 Camera = Tx::lookAt( gEye, gPointOfInterest, gUp );
 		
 		///////////////////////////////////////// Define new lights' positions /////////////////////////////////////////
 		
@@ -565,7 +579,7 @@ int main( int argc, const char * argv[] )
 
 		////////////////////////////////// First pass: render scene to RSM textures ////////////////////////////////////
 		
-		ogl.useProgram( generateRSMProgram );				// Now, create the reflective shadow map textures.
+/*		ogl.useProgram( generateRSMProgram );				// Now, create the reflective shadow map textures.
 		mat44 LightView = Tx::lookAt( gLight.position, gPointOfInterest, Tx::Y_AXIS );
 		gLight.SpaceMatrix = gLight.Projection * LightView;
 
@@ -576,17 +590,39 @@ int main( int argc, const char * argv[] )
 		ogl.setLighting( gLight, LightView );
 		renderScene( LightProjection, LightView, Model, currentTime );
 		glBindFramebuffer( GL_FRAMEBUFFER, 0 );				// Unbind: return control to normal draw framebuffer.
+*/
+		/////////////////////////////// Second pass: render scene to G-Buffer textures /////////////////////////////////
+
+		glViewport( 0, 0, fbWidth, fbHeight );
+		glBindFramebuffer( GL_FRAMEBUFFER, gBuffer );
+		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+		ogl.useProgram( generateGBufferProgram );
+		ogl.setLighting( gLight, Camera );					// Send light position and color.
+		renderScene( Proj, Camera, Model, currentTime );
+		glBindFramebuffer( GL_FRAMEBUFFER, 0 );				// Unbind: return control to normal draw framebuffer.
+
+		///////////////////////////// Third pass: lighting pass using G-buffer textures ////////////////////////////////
+
+		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+		ogl.useProgram( deferredShadingProgram );
+
+		// Enable G-Buffer textures.
+		glActiveTexture( GL_TEXTURE0 );
+		glBindTexture( GL_TEXTURE_2D, gPosition );			// Positions.
+		glActiveTexture( GL_TEXTURE1 );
+		glBindTexture( GL_TEXTURE_2D, gNormal );			// Normals.
+		glActiveTexture( GL_TEXTURE2 );
+		glBindTexture( GL_TEXTURE_2D, gAlbedoSpecular );	// Albedo + specular shininess.
+
+		ogl.setLighting( gLight, Camera );					// Send light properties.
+		float view_matrix[ELEMENTS_PER_MATRIX];
+		Tx::toOpenGLMatrix( view_matrix, Camera );
+		glUniformMatrix4fv( glGetUniformLocation( deferredShadingProgram, "View"), 1, GL_FALSE, view_matrix );
+		ogl.renderNDCQuad();								// Render lit scene into a unit NDC quad.
 
 		//////////////////////////////// Second pass: render scene with shadow mapping /////////////////////////////////
-
+/*
 		ogl.useProgram( renderingProgram );					// Set usual rendering program.
-		if( gRotatingCamera )
-		{
-			eyeAngle += 0.01 * M_PI;
-			gEye = { eyeXZRadius * sin( eyeAngle ), eyeY, eyeXZRadius * cos( eyeAngle ) };
-		}
-		
-		mat44 Camera = Tx::lookAt( gEye, gPointOfInterest, gUp );
 		
 		glViewport( 0, 0, fbWidth, fbHeight );
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
@@ -604,7 +640,7 @@ int main( int argc, const char * argv[] )
 		// Set and send the lighting properties.
 		ogl.setLighting( gLight, Camera );
 		renderScene( Proj, Camera, Model, currentTime );
-
+*/
 //		ogl.useProgram( deferredShadingProgram );
 //		ogl.renderNDCQuad();
 

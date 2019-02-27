@@ -1,7 +1,7 @@
 #version 410 core
 
-in vec3 aPosition;
-in vec2 aTexCoords;
+in vec3 aPosition;			// Quad vertex.
+in vec2 aTexCoords;			// Texture coordinates for quad vertex.
 
 out vec2 oTexCoords;
 

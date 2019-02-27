@@ -1,7 +1,6 @@
 #version 410 core
 
 // Reflective shadow maps constants.
-
 const uint N_SAMPLES = 100;
 const float R_MAX = 0.09;								// Maximum sampling radius.
 const float RSM_INTENSITY = 0.55;
