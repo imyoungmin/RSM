@@ -3,19 +3,7 @@
 /**
  * Constructor.
  */
-OpenGL::OpenGL(){}
-
-/**
- * Release resources.
- */
-OpenGL::~OpenGL()
-{
-	glDeleteVertexArrays( 1, &vao );
-	glDeleteProgram( glyphsProgram );
-
-	// TODO: Delete geometry buffers.
-
-}
+OpenGL::OpenGL() = default;
 
 /**
  * Initialize the OpenGL object.
@@ -185,7 +173,7 @@ void OpenGL::drawPath( const mat44& Projection, const mat44& Camera, const mat44
 		glDrawArrays( GL_LINE_STRIP, 0, path->verticesCount );
 		
 		// Disable vertex attribute array position we sent in the setSequenceInformation function.
-		glDisableVertexAttribArray( posL );
+		glDisableVertexAttribArray( static_cast<GLuint>( posL ) );
 	}
 
 	if( material.ambient[3] < 1.0 )		// Restore blending if necessary.
@@ -229,7 +217,7 @@ void OpenGL::drawPoints( const mat44& Projection, const mat44& Camera, const mat
 		glDisable( GL_PROGRAM_POINT_SIZE );
 		
 		// Disable vertex attribute array position we sent in the setSequenceInformation function.
-		glDisableVertexAttribArray( posL );
+		glDisableVertexAttribArray( static_cast<GLuint>( posL ) );
 	}
 
 	if( material.ambient[3] < 1.0 )		// Restore blending mode.
@@ -287,14 +275,14 @@ void OpenGL::drawGeom( const mat44& Projection, const mat44& Camera, const mat44
 	int normal_location = glGetAttribLocation( renderingProgram, "aNormal" );
 	if( position_location >= 0 )
 	{
-		glEnableVertexAttribArray( position_location );
-		glVertexAttribPointer( position_location, ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( 0 ) );
+		glEnableVertexAttribArray( static_cast<GLuint>( position_location ) );
+		glVertexAttribPointer( static_cast<GLuint>( position_location ), ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( 0 ) );
 		
 		if( normal_location >= 0 )
 		{
-			glEnableVertexAttribArray( normal_location );
+			glEnableVertexAttribArray( static_cast<GLuint>( normal_location ) );
 			size_t offset = sizeof(float) * (*G)->verticesCount * ELEMENTS_PER_VERTEX;
-			glVertexAttribPointer( normal_location, ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( offset ) );
+			glVertexAttribPointer( static_cast<GLuint>( normal_location ), ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( offset ) );
 		}
 		
 		sendShadingInformation( Projection, Camera, Model, true );
@@ -303,9 +291,9 @@ void OpenGL::drawGeom( const mat44& Projection, const mat44& Camera, const mat44
 		glDrawArrays( GL_TRIANGLES, 0, (*G)->verticesCount );
 		
 		// Disable attributes.
-		glDisableVertexAttribArray( position_location );
+		glDisableVertexAttribArray( static_cast<GLuint>( position_location ) );
 		if( normal_location >= 0 )
-			glDisableVertexAttribArray( normal_location );
+			glDisableVertexAttribArray( static_cast<GLuint>( normal_location ) );
 	}
 
 	if( material.ambient[3] < 1.0 )
@@ -438,8 +426,8 @@ GLint OpenGL::setSequenceInformation( const mat44& Projection, const mat44& Came
 	int position_location = glGetAttribLocation( renderingProgram, "aPosition" );
 	if( position_location >= 0 )
 	{
-		glEnableVertexAttribArray( position_location );
-		glVertexAttribPointer( position_location, ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( 0 ) );
+		glEnableVertexAttribArray( static_cast<GLuint>( position_location ) );
+		glVertexAttribPointer( static_cast<GLuint>( position_location ), ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( 0 ) );
 		
 		sendShadingInformation( Projection, Camera, Model, false );			// Without using phong model.
 	}
@@ -476,24 +464,24 @@ void OpenGL::render3DObject( const mat44& Projection, const mat44& Camera, const
 		GLint texCoords_location = glGetAttribLocation( renderingProgram, "aTexCoords" );
 		if( position_location != -1 )		// Need to have at least the vertices positions to render.
 		{
-			glEnableVertexAttribArray( position_location );
-			glVertexAttribPointer( position_location, ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( 0 ) );
+			glEnableVertexAttribArray( static_cast<GLuint>( position_location ) );
+			glVertexAttribPointer( static_cast<GLuint>( position_location ), ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( 0 ) );
 			
 			size_t offset = sizeof(float) * o.getVerticesCount() * ELEMENTS_PER_VERTEX;
 			
 			if( normal_location != -1 )		// Do we need normals?
 			{
-				glEnableVertexAttribArray( normal_location );
-				glVertexAttribPointer( normal_location, ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( offset ) );
+				glEnableVertexAttribArray( static_cast<GLuint>( normal_location ) );
+				glVertexAttribPointer( static_cast<GLuint>( normal_location ), ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( offset ) );
 			}
 			
-			if( texCoords_location != -1 && useTexture && o.hasTexture() )			// Do we want to render with texture instead of color?
+			if( texCoords_location != -1 && useTexture && o.hasTexture() )				// Do we want to render with texture instead of color?
 			{
-				glEnableVertexAttribArray( texCoords_location );
-				glVertexAttribPointer( texCoords_location, TEX_ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( offset * 2 ) );
+				glEnableVertexAttribArray( static_cast<GLuint>( texCoords_location ) );
+				glVertexAttribPointer( static_cast<GLuint>( texCoords_location ), TEX_ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( offset * 2 ) );
 				
 				// Enable texture rendering.
-				glActiveTexture( GL_TEXTURE0 + textureUnit );												// Recall for objects we assigned texture unit after all lights.
+				glActiveTexture( static_cast<GLenum>( GL_TEXTURE0 + textureUnit ) );	// Recall for objects we assigned texture unit after all RSM and G-Buffer samplers.
 				glBindTexture( GL_TEXTURE_2D, o.getTextureID() );
 				glUniform1i( glGetUniformLocation( renderingProgram, "objectTexture" ), textureUnit );		// And tell OpenGL so.
 			}
@@ -506,11 +494,11 @@ void OpenGL::render3DObject( const mat44& Projection, const mat44& Camera, const
 			glDrawArrays( GL_TRIANGLES, 0, o.getVerticesCount() );
 			
 			// Disable attribute arrays for position and normals.
-			glDisableVertexAttribArray( position_location );
+			glDisableVertexAttribArray( static_cast<GLuint>( position_location ) );
 			if( normal_location != -1 )
-				glDisableVertexAttribArray( normal_location );
+				glDisableVertexAttribArray( static_cast<GLuint>( normal_location ) );
 			if( texCoords_location != -1 )
-				glDisableVertexAttribArray( texCoords_location );
+				glDisableVertexAttribArray( static_cast<GLuint>( texCoords_location ) );
 		}
 
 		if( material.ambient[3] < 1.0 )
@@ -716,17 +704,17 @@ void OpenGL::renderNDCQuad()
 	int texCoords_location = glGetAttribLocation( renderingProgram, "aTexCoords" );
 	if( position_location != -1 && texCoords_location != -1 )
 	{
-		glEnableVertexAttribArray( position_location );			// In this case we have a stride value.
-		glVertexAttribPointer( position_location, ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 5 * sizeof(float), BUFFER_OFFSET( 0 ) );
-		glEnableVertexAttribArray( texCoords_location );
-		glVertexAttribPointer( texCoords_location, TEX_ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 5 * sizeof(float), BUFFER_OFFSET( 3 * sizeof(float) ) );
+		glEnableVertexAttribArray( static_cast<GLuint>( position_location ) );			// In this case we have a stride value.
+		glVertexAttribPointer( static_cast<GLuint>( position_location ), ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 5 * sizeof(float), BUFFER_OFFSET( 0 ) );
+		glEnableVertexAttribArray( static_cast<GLuint>( texCoords_location ) );
+		glVertexAttribPointer( static_cast<GLuint>( texCoords_location ), TEX_ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 5 * sizeof(float), BUFFER_OFFSET( 3 * sizeof(float) ) );
 
 		// Draw a triangle strip.
 		glDrawArrays( GL_TRIANGLE_STRIP, 0, ndcQuad->verticesCount );
 
 		// Disable attributes.
-		glDisableVertexAttribArray( position_location );
-		glDisableVertexAttribArray( texCoords_location );
+		glDisableVertexAttribArray( static_cast<GLuint>( position_location ) );
+		glDisableVertexAttribArray( static_cast<GLuint>( texCoords_location ) );
 	}
 
 	// Draw a triangle strip.
@@ -734,7 +722,76 @@ void OpenGL::renderNDCQuad()
 
 }
 
+/**
+ * Release resources.
+ */
+OpenGL::~OpenGL()
+{
+	cout << "Destroying OpenGL application... " << endl;
+	glDeleteVertexArrays( 1, &vao );
+	glDeleteProgram( glyphsProgram );
 
+	// Delete buffers associated with geometries and 3D objects.
+	cout << "  Deleting geometry buffers... ";
+	if( cube != nullptr )				// Cube.
+	{
+		if( glIsBuffer( cube->bufferID ) )
+			glDeleteBuffers( 1, &( cube->bufferID ) );
+		delete cube;
+	}
+
+	if( sphere != nullptr )				// Sphere.
+	{
+		if( glIsBuffer( sphere->bufferID ) )
+			glDeleteBuffers( 1, &( sphere->bufferID ) );
+		delete sphere;
+	}
+
+	if( cylinder != nullptr )			// Cylinder.
+	{
+		if( glIsBuffer( cylinder->bufferID ) )
+			glDeleteBuffers( 1, &( cylinder->bufferID ) );
+		delete cylinder;
+	}
+
+	if( prism != nullptr )				// Prism.
+	{
+		if( glIsBuffer( prism->bufferID ) )
+			glDeleteBuffers( 1, &( prism->bufferID ) );
+		delete prism;
+	}
+
+	if( path != nullptr )				// Path.
+	{
+		if( glIsBuffer( path->bufferID ) )
+			glDeleteBuffers( 1, &( path->bufferID ) );
+		delete path;
+	}
+
+	if( ndcQuad != nullptr )			// Quad.
+	{
+		if( glIsBuffer( ndcQuad->bufferID ) )
+			glDeleteBuffers( 1, &( ndcQuad->bufferID ) );
+		delete ndcQuad;
+	}
+
+	cout << "Done!" << endl;
+
+	// Delete buffers and textures associated with objects.
+	for( const auto& objectPair : objectModels )
+	{
+		Object3D o = objectPair.second;
+		cout << "  Deleting " << objectPair.first << "... ";
+		GLuint bufferID = o.getBufferID();
+		GLuint textureID = o.getTextureID();
+		glDeleteBuffers( 1, &bufferID );			// Empty buffer and texture.
+		if( o.hasTexture() && glIsTexture( textureID ) )
+			glDeleteTextures( 1, &textureID );
+		cout << "Done!" << endl;
+	}
+
+	cout << "Done!" << endl;
+}
 
 
 

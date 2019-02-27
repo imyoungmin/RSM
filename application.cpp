@@ -688,7 +688,9 @@ int main( int argc, const char * argv[] )
 	
 	// Delete OpenGL programs.
 	glDeleteProgram( renderingProgram );
-	
+	glDeleteProgram( generateGBufferProgram );
+	glDeleteProgram( generateRSMProgram );
+
 	return 0;
 }
 

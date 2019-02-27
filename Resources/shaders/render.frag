@@ -60,7 +60,7 @@ vec3 indirectLighting( vec2 uvFrag, vec3 n, vec3 x )
 	{
 		vec2 uv = uvFrag + R_MAX * RSMSamplePositions[i];
 		vec3 flux = texture( sRSMFlux, uv ).rgb;		// Collect components from corresponding RSM textures.
-		vec3 x_p = texture( sRSMPosition, uv ).xyz;
+		vec3 x_p = texture( sRSMPosition, uv ).xyz;		// Position (x_p) and normal (n_p) are in world coordinates too.
 		vec3 n_p = texture( sRSMNormal, uv ).xyz;
 
 		// Irradiance at current fragment w.r.t. pixel light at uv.
@@ -180,6 +180,7 @@ void main( void )
 	bool useBlinnPhong = texture( sGPosLightSpace, oTexCoords ).a != 0.0;
 
 	float shadow = 0;												// PCSS shadow result for this fragment.
+	vec3 eColor = vec3( 0 );										// Indirect lighting works only when normals are given.
 	if( useBlinnPhong )												// Use Blinn-Phong reflectance model?
 	{
 		vec3 N = normalize( texture( sGNormal, oTexCoords ).rgb );
@@ -201,6 +202,9 @@ void main( void )
 		else
 			specularColor = vec3( 0.0, 0.0, 0.0 );
 		shadow = pcss( projFrag, incidence );
+
+		// Calculate indirect lighting using the reflective shadow map.
+        eColor = indirectLighting( projFrag.xy, N, position );
 	}
 	else
 	{
@@ -208,9 +212,6 @@ void main( void )
 		shadow = pcss( projFrag, 1 );
 	}
 
-	// Calculate indirect lighting using the reflective shadow map.
-//	vec3 eColor = indirectLighting( projFrag.xy, N, P );
-
 	// Fragment color.
-	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor ) * lightColor, 1.0 );
+	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * lightColor, 1.0 );
 }
