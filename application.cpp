@@ -635,28 +635,6 @@ int main( int argc, const char * argv[] )
 		glUniform3fv( glGetUniformLocation( renderingProgram, "eyePosition" ), 1, eyePosition_vector );
 		ogl.renderNDCQuad();										// Render lit scene into a unit NDC quad.
 
-		//////////////////////////////// Second pass: render scene with shadow mapping /////////////////////////////////
-/*
-		ogl.useProgram( renderingProgram );							// Set usual rendering program.
-		
-		glViewport( 0, 0, fbWidth, fbHeight );
-		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-		
-		// Enable reflective shadow map texture samplers.
-		glActiveTexture( GL_TEXTURE0 );								// Positions.
-		glBindTexture( GL_TEXTURE_2D, gLight.rsmPosition );
-		glActiveTexture( GL_TEXTURE1 );								// Normals.
-		glBindTexture( GL_TEXTURE_2D, gLight.rsmNormal );
-		glActiveTexture( GL_TEXTURE2 );								// Flux.
-		glBindTexture( GL_TEXTURE_2D, gLight.rsmFlux );
-		glActiveTexture( GL_TEXTURE3 );								// Depth.
-		glBindTexture( GL_TEXTURE_2D, gLight.rsmDepth );
-
-		// Set and send the lighting properties.
-		ogl.setLighting( gLight, Camera );
-		renderScene( Proj, Camera, Model, currentTime );
-*/
-
 		/////////////////////////////////////////////// Rendering text /////////////////////////////////////////////////
 
 		glUseProgram( ogl.getGlyphsProgram() );				// Switch to text rendering.  The text rendering is the only program created within the OpenGL class.
