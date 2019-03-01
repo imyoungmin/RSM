@@ -1,9 +1,9 @@
 #version 410 core
 
 // Reflective shadow maps constants.
-const uint N_SAMPLES = 100;
+const uint N_SAMPLES = 150;
 const float R_MAX = 0.09;							// Maximum sampling radius.
-const float RSM_INTENSITY = 0.35;
+const float RSM_INTENSITY = 0.4;
 
 // Percentage closer soft shadow constants.
 const uint PCSS_SAMPLES = 31;
@@ -11,6 +11,14 @@ const float NEAR_PLANE = 0.01;
 const float LIGHT_WORLD_SIZE = 2.0;
 const float LIGHT_FRUSTUM_WIDTH = 20.0;
 const float LIGHT_SIZE_UV = (LIGHT_WORLD_SIZE / LIGHT_FRUSTUM_WIDTH);	// Assuming that LIGHT_FRUSTUM_WIDTH = LIGHT_FRUSTUM_HEIGHT.
+
+// Screen Space Ambient Occlusion constants.
+const float SSAO_AMBIENT_WEIGHT = 0.3;
+
+// Light attenuation constants.
+const float LIGHT_CONSTANT_PARAM = 1.0;
+const float LIGHT_LINEAR_PARAM = 0.027;
+const float LIGHT_QUADRATIC_PARAM = 0.0028;
 
 // Shader variables.
 uniform vec2 RSMSamplePositions[N_SAMPLES];			// Array of uniformly-distributed sampling positions in a unit disk.
@@ -182,7 +190,7 @@ void main( void )
 
 	// Retrieve data from the SSAO occlusion sampler.
 	float ambientOcclusion = texture( sSSAOFactor, oTexCoords ).r;
-	vec3 ambientColor = diffuseColor * 0.3 * ambientOcclusion;
+	vec3 ambientColor = diffuseColor * ambientOcclusion * SSAO_AMBIENT_WEIGHT;
 
 	float shadow = 0;												// PCSS shadow result for this fragment.
 	vec3 eColor = vec3( 0 );										// Indirect lighting works only when normals are given.
@@ -217,6 +225,10 @@ void main( void )
 		shadow = pcss( projFrag, 1 );
 	}
 
+	// Light attenuation.
+	float lDistance = length( lightPosition.xyz - position );
+	float lAttenuation = 1.0 / ( LIGHT_CONSTANT_PARAM + LIGHT_LINEAR_PARAM * lDistance + LIGHT_QUADRATIC_PARAM * lDistance * lDistance );
+
 	// Fragment color.
-	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * 0.5, 1.0 );
+	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * ( 1.0 - SSAO_AMBIENT_WEIGHT ) * lAttenuation, 1.0 );
 }

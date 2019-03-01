@@ -371,6 +371,11 @@ int main( int argc, const char * argv[] )
 	cout << "Compiling SSAO generator shaders... ";
 	GLuint generateSSAOProgram = shaders.compile( conf::SHADERS_FOLDER + "generateSSAO.vert", conf::SHADERS_FOLDER + "generateSSAO.frag" );
 	cout << "Done!" << endl;
+
+	// Compile shaders program to blur the SSAO texture. Notice we use the same vertex shader than in the generator case.
+	cout << "Compiling SSAO blur shaders... ";
+	GLuint blurSSAOProgram = shaders.compile( conf::SHADERS_FOLDER + "generateSSAO.vert", conf::SHADERS_FOLDER + "blurSSAO.frag" );
+	cout << "Done!" << endl;
 	
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
 	
@@ -378,9 +383,9 @@ int main( int argc, const char * argv[] )
 	float lSide = 20.0f;
 	mat44 LightProjection = Tx::ortographic( -lSide, lSide, -lSide, lSide, lNearPlane, lFarPlane );
 
-	const double lRadius = 6.0;
+	const double lRadius = 4.0;
 	const double phi = 0.0;
-	const float lHeight = 5.25;
+	const float lHeight = 5.0;
 	const float lRGB[3] = { 0.85, 0.85, 0.85 };
 	gLight = Light( { lRadius * sin( phi ), lHeight, lRadius * cos( phi ) }, { lRGB[0], lRGB[1], lRGB[2] }, LightProjection );
 	
@@ -452,7 +457,7 @@ int main( int argc, const char * argv[] )
 
 	////////////////////////////////// Generating random samples in a unit disk ////////////////////////////////////////
 
-	const size_t N_SAMPLES = 100;
+	const size_t N_SAMPLES = 150;
 	std::random_device rd;											// Request random data from OS.
 	std::mt19937 generator( rd() );
 	uniform_real_distribution<float> uniform( 0, 1 );
@@ -540,7 +545,7 @@ int main( int argc, const char * argv[] )
 	GLuint ssaoFBO;
 	glGenFramebuffers( 1, &ssaoFBO );
 	glBindFramebuffer( GL_FRAMEBUFFER, ssaoFBO );
-	GLuint ssaoFactor;										// The texture that holds a NON occusion factor.
+	GLuint ssaoFactor;										// The texture that holds the occlusion factor.
 
 	glGenTextures( 1, &ssaoFactor );						// This is the only attachment (output) from SSAO generation stage.
 	glBindTexture( GL_TEXTURE_2D, ssaoFactor );
@@ -552,7 +557,7 @@ int main( int argc, const char * argv[] )
 		cerr << "[SSAO] Framebuffer not complete!" << endl;
 
 	// Generate samples to be used in the view-space normal hemisphere of a fragment.
-	const int SSAO_KERNEL_SIZE = 32;
+	const int SSAO_KERNEL_SIZE = 48;
 	vector<float> ssaoKernel;
 	for( int i = 0; i < 64; ++i)
 	{
@@ -599,12 +604,32 @@ int main( int argc, const char * argv[] )
 	glUniform1f( glGetUniformLocation( generateSSAOProgram, "frameBufferHeight" ), fbHeight );
 	glUniform3fv( glGetUniformLocation( generateSSAOProgram, "ssaoSamples" ), SSAO_KERNEL_SIZE, ssaoKernel.data() );	// Kernel precomputed samples.
 	// Remains to send view and projection matrices below.
+
+	////////////////////////////// Setting up the SSAO blurring buffer object textures /////////////////////////////////
+
+	GLuint ssaoBlurFBO;
+	glGenFramebuffers( 1, &ssaoBlurFBO );
+	glBindFramebuffer( GL_FRAMEBUFFER, ssaoBlurFBO );
+	GLuint ssaoBlurFactor;									// The texture that holds the occlusion blurred factor.
+
+	glGenTextures( 1, &ssaoBlurFactor );					// This is the only attachment (output) from SSAO blurring stage.
+	glBindTexture( GL_TEXTURE_2D, ssaoBlurFactor );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );			// Notice: only one channel.
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ssaoBlurFactor, 0 );	// Unique attachment.
+	if( glCheckFramebufferStatus( GL_FRAMEBUFFER ) != GL_FRAMEBUFFER_COMPLETE )
+		cerr << "[SSAOBlur] Framebuffer not complete!" << endl;
+
+	// Set uniforms in SSAO blur program.
+	glUseProgram( blurSSAOProgram );
+	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sSSAOFactor" ), 0 );		// Sampler for SSAO factor texture.
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	double currentTime = 0.0;
 	const double timeStep = 0.01;
-	const float textColor[] = { 0.0, 0.8, 1.0, 1.0 };
+	const float textColor[] = { 1.0, 1.0, 1.0, 0.7 };
 	char text[128];
 	
 	glEnable( GL_DEPTH_TEST );
@@ -612,7 +637,7 @@ int main( int argc, const char * argv[] )
 	glFrontFace( GL_CCW );
 
 	ogl.setUsingUniformScaling( false );
-	ogl.create3DObject( "mercury", "mercury.obj" );
+	ogl.create3DObject( "mercury", "mercury10.obj" );
 	
 	float eyeY = gEye[1];										// Build eye components from its intial value.
 	float eyeXZRadius = sqrt( gEye[0]*gEye[0] + gEye[2]*gEye[2] );
@@ -680,7 +705,7 @@ int main( int argc, const char * argv[] )
 		renderScene( Proj, Camera, Model, currentTime );
 		glBindFramebuffer( GL_FRAMEBUFFER, 0 );						// Unbind: return control to normal draw framebuffer.
 
-		///////////////////////////// Third pass: generate the SSAO non occlusion factor ///////////////////////////////
+		/////////////////////////////// Third pass: generate the SSAO occlusion factor /////////////////////////////////
 
 		glBindFramebuffer( GL_FRAMEBUFFER, ssaoFBO );
 		glClear( GL_COLOR_BUFFER_BIT );
@@ -698,6 +723,18 @@ int main( int argc, const char * argv[] )
 		Tx::toOpenGLMatrix( proj_matrix, Proj );
 		glUniformMatrix4fv( glGetUniformLocation( generateSSAOProgram, "View" ), 1, GL_FALSE, view_matrix );
 		glUniformMatrix4fv( glGetUniformLocation( generateSSAOProgram, "Projection" ), 1, GL_FALSE, proj_matrix );
+		ogl.renderNDCQuad();
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		//////////////////////////////// Fourth pass: blur the SSAO occlusion factor ///////////////////////////////////
+
+		glBindFramebuffer( GL_FRAMEBUFFER, ssaoBlurFBO );
+		glClear( GL_COLOR_BUFFER_BIT );
+		ogl.useProgram( blurSSAOProgram );
+
+		// Enable SSAO occlusion texture filled at the previous pass.
+		glActiveTexture( GL_TEXTURE0 );
+		glBindTexture( GL_TEXTURE_2D, ssaoFactor );
 		ogl.renderNDCQuad();
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -728,7 +765,7 @@ int main( int argc, const char * argv[] )
 
 		// Enable SSAO textures.
 		glActiveTexture( GL_TEXTURE8 );
-		glBindTexture( GL_TEXTURE_2D, ssaoFactor );					// SSAO factor texture.
+		glBindTexture( GL_TEXTURE_2D, ssaoBlurFactor );				// SSAO blurred factor texture.
 
 		ogl.setLighting( gLight, Camera, false );					// Send light properties (in world space).
 		Tx::toOpenGLMatrix( eyePosition_vector, gEye );

@@ -2,9 +2,10 @@
 
 layout (location = 0) out float TexSSAOFactor;	// Outputting to a single render attachment, which is the NON occlusion factor.
 
-const int KERNEL_SIZE = 32;
-const float HEMISPHERE_RADIUS = 0.45;
-const float BIAS = 0.05;
+const int KERNEL_SIZE = 48;
+const float HEMISPHERE_RADIUS = 0.5;
+const float BIAS = 0.07;
+const float INTENSITY = 5.0;
 
 in vec2 oTexCoords;
 
@@ -25,6 +26,7 @@ void main()
 
     // Collect position, normal, and random noise from G-Buffer and noise sampler.
 	vec3 vPosition = ( View * vec4( texture( sGPosition, oTexCoords ).xyz, 1.0 ) ).xyz;				// Position in camera space.
+
 	vec3 vNormal = normalize( ( View * vec4( texture( sGNormal, oTexCoords ).xyz, 1.0 ) ).xyz );	// Normal in camera space.
 	vec3 randomVector = texture( sSSAONoiseTexture, oTexCoords * noiseScale ).xyz;					// Pick a unit random vector from noise texture in the xy plane.
 
@@ -54,5 +56,5 @@ void main()
 		float rangeCheck = smoothstep( 0.0, 1.0, HEMISPHERE_RADIUS / abs( vPosition.z - vDepth ) );
 		occlusion += ( vDepth >= s.z + BIAS ? 1.0 : 0.0 ) * rangeCheck;
     }
-	TexSSAOFactor = pow( 1.0 - ( occlusion / KERNEL_SIZE ), 7.0 );
+	TexSSAOFactor = pow( 1.0 - ( occlusion / KERNEL_SIZE ), INTENSITY );
 }
