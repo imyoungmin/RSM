@@ -3,7 +3,7 @@
 // Reflective shadow maps constants.
 const uint N_SAMPLES = 100;
 const float R_MAX = 0.09;							// Maximum sampling radius.
-const float RSM_INTENSITY = 0.55;
+const float RSM_INTENSITY = 0.35;
 
 // Percentage closer soft shadow constants.
 const uint PCSS_SAMPLES = 31;
@@ -24,6 +24,8 @@ uniform sampler2D sGPosition;						// G-Buffer textures: positions.
 uniform sampler2D sGNormal;							// Normals.
 uniform sampler2D sGAlbedoSpecular;					// Object's RGB albedo + specular shininess.
 uniform sampler2D sGPosLightSpace;					// Fragment position in normalized reflective light space + using Blinn-Phong shading flag.
+
+uniform sampler2D sSSAOFactor;						// SSAO occlusion factor sampler.
 
 in vec2 oTexCoords;									// NDC quad texture coordinates.
 
@@ -171,13 +173,16 @@ float pcss( vec3 projFrag, float incidence )
 void main( void )
 {
 	// Retrieve data from G-Buffer textures.
-	vec3 diffuseColor = texture( sGAlbedoSpecular, oTexCoords ).rgb,
+	vec3 diffuseColor = texture( sGAlbedoSpecular, oTexCoords ).rgb * lightColor,
 		 specularColor = vec3( 0.8, 0.8, 0.8 );
-	vec3 ambientColor = diffuseColor * 0.1;
 	float shininess = texture( sGAlbedoSpecular, oTexCoords ).a;
 	vec3 position = texture( sGPosition, oTexCoords ).rgb;
 	vec3 projFrag = texture( sGPosLightSpace, oTexCoords ).rgb;
 	bool useBlinnPhong = texture( sGPosLightSpace, oTexCoords ).a != 0.0;
+
+	// Retrieve data from the SSAO occlusion sampler.
+	float ambientOcclusion = texture( sSSAOFactor, oTexCoords ).r;
+	vec3 ambientColor = diffuseColor * 0.3 * ambientOcclusion;
 
 	float shadow = 0;												// PCSS shadow result for this fragment.
 	vec3 eColor = vec3( 0 );										// Indirect lighting works only when normals are given.
@@ -213,5 +218,5 @@ void main( void )
 	}
 
 	// Fragment color.
-	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * lightColor, 1.0 );
+	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * 0.5, 1.0 );
 }
