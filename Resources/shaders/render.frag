@@ -1,9 +1,9 @@
 #version 410 core
 
 // Reflective shadow maps constants.
-const uint N_SAMPLES = 100;
+const uint N_SAMPLES = 150;
 const float R_MAX = 0.09;							// Maximum sampling radius.
-const float RSM_INTENSITY = 0.55;
+const float RSM_INTENSITY = 0.4;
 
 // Percentage closer soft shadow constants.
 const uint PCSS_SAMPLES = 31;
@@ -11,6 +11,14 @@ const float NEAR_PLANE = 0.01;
 const float LIGHT_WORLD_SIZE = 2.0;
 const float LIGHT_FRUSTUM_WIDTH = 20.0;
 const float LIGHT_SIZE_UV = (LIGHT_WORLD_SIZE / LIGHT_FRUSTUM_WIDTH);	// Assuming that LIGHT_FRUSTUM_WIDTH = LIGHT_FRUSTUM_HEIGHT.
+
+// Screen Space Ambient Occlusion constants.
+const float SSAO_AMBIENT_WEIGHT = 0.3;
+
+// Light attenuation constants.
+const float LIGHT_CONSTANT_PARAM = 1.0;
+const float LIGHT_LINEAR_PARAM = 0.027;
+const float LIGHT_QUADRATIC_PARAM = 0.0028;
 
 // Shader variables.
 uniform vec2 RSMSamplePositions[N_SAMPLES];			// Array of uniformly-distributed sampling positions in a unit disk.
@@ -25,11 +33,15 @@ uniform sampler2D sGNormal;							// Normals.
 uniform sampler2D sGAlbedoSpecular;					// Object's RGB albedo + specular shininess.
 uniform sampler2D sGPosLightSpace;					// Fragment position in normalized reflective light space + using Blinn-Phong shading flag.
 
+uniform sampler2D sSSAOFactor;						// SSAO occlusion factor sampler.
+
 in vec2 oTexCoords;									// NDC quad texture coordinates.
 
 uniform vec4 lightPosition;							// In world space.
 uniform vec3 lightColor;							// Only RGB.
 uniform vec3 eyePosition;							// Viewer position in world space.
+
+uniform bool enableSSAO;							// Use or not SSAO.
 
 // Used for searching and filtering the depth/shadow map.
 const vec2 poissonDisk[PCSS_SAMPLES] = vec2[PCSS_SAMPLES](
@@ -171,19 +183,27 @@ float pcss( vec3 projFrag, float incidence )
 void main( void )
 {
 	// Retrieve data from G-Buffer textures.
-	vec3 diffuseColor = texture( sGAlbedoSpecular, oTexCoords ).rgb,
+	vec3 diffuseColor = texture( sGAlbedoSpecular, oTexCoords ).rgb * lightColor,
 		 specularColor = vec3( 0.8, 0.8, 0.8 );
-	vec3 ambientColor = diffuseColor * 0.1;
 	float shininess = texture( sGAlbedoSpecular, oTexCoords ).a;
 	vec3 position = texture( sGPosition, oTexCoords ).rgb;
 	vec3 projFrag = texture( sGPosLightSpace, oTexCoords ).rgb;
 	bool useBlinnPhong = texture( sGPosLightSpace, oTexCoords ).a != 0.0;
 
+	// Retrieve data from the SSAO occlusion sampler if it is enabled.
+	float ambientOcclusion = 0.0;
+	vec3 ambientColor = diffuseColor * 0.1;
+	if( enableSSAO )
+	{
+		ambientOcclusion = texture( sSSAOFactor, oTexCoords ).r;
+		ambientColor = diffuseColor * ambientOcclusion * SSAO_AMBIENT_WEIGHT;
+	}
+
 	float shadow = 0;												// PCSS shadow result for this fragment.
 	vec3 eColor = vec3( 0 );										// Indirect lighting works only when normals are given.
 	if( useBlinnPhong )												// Use Blinn-Phong reflectance model?
 	{
-		vec3 N = normalize( texture( sGNormal, oTexCoords ).rgb );
+		vec3 N = texture( sGNormal, oTexCoords ).rgb;
 		vec3 E = normalize( eyePosition - position );				// View direction.
 		vec3 L = normalize( lightPosition.xyz - position );			// Light direction.
 		vec3 H = normalize( L + E );								// Half vector.
@@ -212,6 +232,10 @@ void main( void )
 		shadow = pcss( projFrag, 1 );
 	}
 
+	// Light attenuation.
+	float lDistance = length( lightPosition.xyz - position );
+	float lAttenuation = 1.0 / ( LIGHT_CONSTANT_PARAM + LIGHT_LINEAR_PARAM * lDistance + LIGHT_QUADRATIC_PARAM * lDistance * lDistance );
+
 	// Fragment color.
-	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * lightColor, 1.0 );
+	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * ( 1.0 - ( enableSSAO ? SSAO_AMBIENT_WEIGHT : 0.0 ) ) * lAttenuation, 1.0 );
 }

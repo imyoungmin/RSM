@@ -32,6 +32,7 @@ bool gLocked;							// Track if mouse button is pressed down.
 bool gUsingArrowKey;					// Track if we are using the arrow keys for rotating scene.
 bool gRotatingLights;					// Enable/disable rotating lights about the scene.
 bool gRotatingCamera;					// Enable/disable rotating camera.
+bool gEnableSSAO;						// Enable use of screen space ambient occlusion.
 float gZoom;							// Camera zoom.
 const float ZOOM_IN = 1.015;
 const float ZOOM_OUT = 0.985;
@@ -161,6 +162,12 @@ void keyCallback( GLFWwindow* window, int key, int scancode, int action, int mod
 			if( !gRotatingLights )
 				gRotatingCamera = !gRotatingCamera;
 			break;
+		case GLFW_KEY_O:
+			gEnableSSAO = !gEnableSSAO;
+			if( gEnableSSAO )
+				cout << "[!] SSAO enabled" << endl;
+			else
+				cout << "[!] SSAO disabled" << endl;
 		default: return;
 	}
 }
@@ -249,7 +256,7 @@ void resizeCallback( GLFWwindow* window, int w, int h )
 
 	// Projection used for 3D.
 	double ratio = static_cast<double>(w)/static_cast<double>(h);
-	Proj = Tx::perspective( M_PI/3.0, ratio, 0.01, 1000.0 );
+	Proj = Tx::perspective( M_PI/3.0, ratio, 0.01, 100.0 );
 
 	// Projection used for text rendering.
 	int windowW, windowH;
@@ -300,6 +307,7 @@ int main( int argc, const char * argv[] )
 	gRotatingLights = false;			// Start with still lights.
 	gRotatingCamera = false;
 	gUsingArrowKey = false;				// Track pressing action of arrow keys.
+	gEnableSSAO = true;
 	gZoom = 1.0;						// Camera zoom.
 	
 	GLFWwindow* window;
@@ -314,6 +322,7 @@ int main( int argc, const char * argv[] )
 	glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 1 );
 	glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
 	glfwWindowHint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE );
+	glfwWindowHint( GLFW_RESIZABLE, false );
 	
 	cout << glfwGetVersionString() << endl;
 
@@ -366,6 +375,16 @@ int main( int argc, const char * argv[] )
 	cout << "Compiling G-Buffer generator shaders... ";
 	GLuint generateGBufferProgram = shaders.compile( conf::SHADERS_FOLDER + "generateGBuffer.vert", conf::SHADERS_FOLDER + "generateGBuffer.frag" );
 	cout << "Done!" << endl;
+
+	// Compile shaders program to generate the SSAO texture.
+	cout << "Compiling SSAO generator shaders... ";
+	GLuint generateSSAOProgram = shaders.compile( conf::SHADERS_FOLDER + "generateSSAO.vert", conf::SHADERS_FOLDER + "generateSSAO.frag" );
+	cout << "Done!" << endl;
+
+	// Compile shaders program to blur the SSAO texture. Notice we use the same vertex shader than in the generator case.
+	cout << "Compiling SSAO blur shaders... ";
+	GLuint blurSSAOProgram = shaders.compile( conf::SHADERS_FOLDER + "generateSSAO.vert", conf::SHADERS_FOLDER + "blurSSAO.frag" );
+	cout << "Done!" << endl;
 	
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
 	
@@ -373,10 +392,10 @@ int main( int argc, const char * argv[] )
 	float lSide = 20.0f;
 	mat44 LightProjection = Tx::ortographic( -lSide, lSide, -lSide, lSide, lNearPlane, lFarPlane );
 
-	const double lRadius = 6.0;
+	const double lRadius = 4.0;
 	const double phi = 0.0;
-	const float lHeight = 5.25;
-	const float lRGB[3] = { 0.9, 0.9, 0.9 };
+	const float lHeight = 5.0;
+	const float lRGB[3] = { 0.85, 0.85, 0.85 };
 	gLight = Light( { lRadius * sin( phi ), lHeight, lRadius * cos( phi ) }, { lRGB[0], lRGB[1], lRGB[2] }, LightProjection );
 	
 	/////////////////////////////////////// Setting up reflective shadow map ///////////////////////////////////////////
@@ -447,7 +466,7 @@ int main( int argc, const char * argv[] )
 
 	////////////////////////////////// Generating random samples in a unit disk ////////////////////////////////////////
 
-	const size_t N_SAMPLES = 100;
+	const size_t N_SAMPLES = 150;
 	std::random_device rd;											// Request random data from OS.
 	std::mt19937 generator( rd() );
 	uniform_real_distribution<float> uniform( 0, 1 );
@@ -476,6 +495,8 @@ int main( int argc, const char * argv[] )
 	glGenTextures( 1, &gPosition );
 	glBindTexture( GL_TEXTURE_2D, gPosition );
 	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );								// Don't want to query fragments beyond border.
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gPosition, 0 );		// Attachment 0.
@@ -520,18 +541,104 @@ int main( int argc, const char * argv[] )
 		cerr << "[Deferred Rendering] Framebuffer not complete!" << endl;
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 
-	// Set uniforms in deferred rendering program.
-	ogl.useProgram( renderingProgram );
-	glUniform1i( glGetUniformLocation( renderingProgram, "sGPosition" ), 4 );						// G-Buffer samplers begin at texture unit 4.
+	// Set uniform samplers in deferred rendering program.
+	glUseProgram( renderingProgram );
+	glUniform1i( glGetUniformLocation( renderingProgram, "sGPosition" ), 4 );							// G-Buffer samplers begin at texture unit 4.
 	glUniform1i( glGetUniformLocation( renderingProgram, "sGNormal" ), 5 );
 	glUniform1i( glGetUniformLocation( renderingProgram, "sGAlbedoSpecular" ), 6 );
 	glUniform1i( glGetUniformLocation( renderingProgram, "sGPosLightSpace" ), 7 );
+	glUniform1i( glGetUniformLocation( renderingProgram, "sSSAOFactor"), 8 );							// SSAO factor.
+
+	///////////////////////////// Setting up the SSAO generator buffer object textures /////////////////////////////////
+
+	GLuint ssaoFBO;
+	glGenFramebuffers( 1, &ssaoFBO );
+	glBindFramebuffer( GL_FRAMEBUFFER, ssaoFBO );
+	GLuint ssaoFactor;										// The texture that holds the occlusion factor.
+
+	glGenTextures( 1, &ssaoFactor );						// This is the only attachment (output) from SSAO generation stage.
+	glBindTexture( GL_TEXTURE_2D, ssaoFactor );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );			// Notice: only one channel.
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ssaoFactor, 0 );		// Unique attachment.
+	if( glCheckFramebufferStatus( GL_FRAMEBUFFER ) != GL_FRAMEBUFFER_COMPLETE )
+		cerr << "[SSAO] Framebuffer not complete!" << endl;
+
+	// Generate samples to be used in the view-space normal hemisphere of a fragment.
+	const int SSAO_KERNEL_SIZE = 48;
+	vector<float> ssaoKernel;
+	for( int i = 0; i < 64; ++i)
+	{
+		vec3 sample = { uniform( generator ) * 2.0 - 1.0, uniform( generator ) * 2.0 - 1.0, uniform( generator ) };
+		sample = normalise( sample );
+		sample *= uniform( generator );
+		float scale = i / 64.0f;
+
+		// Concentrate samples more towards the center of the kernel.
+		scale = 0.1f + scale * scale * ( 1.0f - 0.1f );
+		sample *= scale;
+		ssaoKernel.push_back( sample[0] );
+		ssaoKernel.push_back( sample[1] );
+		ssaoKernel.push_back( sample[2] );
+	}
+
+	// Generate the MxM noise texture from where we'll draw random vectors in generateSSAO.frag shader.
+	const int SSAO_NOISE_SIZE = 4;
+	vector<float> ssaoNoise;
+	for( int i = 0; i < SSAO_NOISE_SIZE * SSAO_NOISE_SIZE; i++ )
+	{
+		vec3 noise = { uniform( generator ) * 2.0 - 1.0, uniform( generator ) * 2.0 - 1.0, 0.0 }; 		// Random unit vector on the x-y plane.
+		noise = normalise( noise );
+		ssaoNoise.push_back( noise[0] );
+		ssaoNoise.push_back( noise[1] );
+		ssaoNoise.push_back( noise[2] );
+	}
+
+	GLuint ssaoNoiseTexture;
+	glGenTextures( 1, &ssaoNoiseTexture );
+	glBindTexture( GL_TEXTURE_2D, ssaoNoiseTexture );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, SSAO_NOISE_SIZE, SSAO_NOISE_SIZE, 0, GL_RGB, GL_FLOAT, ssaoNoise.data() );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );					// Set it to repeat pattern in rendered quad.
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
+
+	// Set uniforms in SSAO generation program.
+	glUseProgram( generateSSAOProgram );
+	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sGPosition" ), 0 );	// Texture units begin at 0 in this case.
+	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sGNormal" ), 1 );
+	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sSSAONoiseTexture" ), 2 );
+	glUniform1f( glGetUniformLocation( generateSSAOProgram, "frameBufferWidth" ), fbWidth );							// Framebuffer width and height.
+	glUniform1f( glGetUniformLocation( generateSSAOProgram, "frameBufferHeight" ), fbHeight );
+	glUniform3fv( glGetUniformLocation( generateSSAOProgram, "ssaoSamples" ), SSAO_KERNEL_SIZE, ssaoKernel.data() );	// Kernel precomputed samples.
+	// Remains to send view and projection matrices below.
+
+	////////////////////////////// Setting up the SSAO blurring buffer object textures /////////////////////////////////
+
+	GLuint ssaoBlurFBO;
+	glGenFramebuffers( 1, &ssaoBlurFBO );
+	glBindFramebuffer( GL_FRAMEBUFFER, ssaoBlurFBO );
+	GLuint ssaoBlurFactor;									// The texture that holds the occlusion blurred factor.
+
+	glGenTextures( 1, &ssaoBlurFactor );					// This is the only attachment (output) from SSAO blurring stage.
+	glBindTexture( GL_TEXTURE_2D, ssaoBlurFactor );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );			// Notice: only one channel.
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ssaoBlurFactor, 0 );	// Unique attachment.
+	if( glCheckFramebufferStatus( GL_FRAMEBUFFER ) != GL_FRAMEBUFFER_COMPLETE )
+		cerr << "[SSAOBlur] Framebuffer not complete!" << endl;
+
+	// Set uniforms in SSAO blur program.
+	glUseProgram( blurSSAOProgram );
+	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sSSAOFactor" ), 0 );		// Sampler for SSAO factor texture.
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	double currentTime = 0.0;
 	const double timeStep = 0.01;
-	const float textColor[] = { 0.0, 0.8, 1.0, 1.0 };
+	const float textColor[] = { 1.0, 1.0, 1.0, 0.7 };
 	char text[128];
 	
 	glEnable( GL_DEPTH_TEST );
@@ -539,12 +646,14 @@ int main( int argc, const char * argv[] )
 	glFrontFace( GL_CCW );
 
 	ogl.setUsingUniformScaling( false );
-	ogl.create3DObject( "mercury", "mercury.obj" );
+	ogl.create3DObject( "mercury", "mercury10.obj" );
 	
 	float eyeY = gEye[1];										// Build eye components from its intial value.
 	float eyeXZRadius = sqrt( gEye[0]*gEye[0] + gEye[2]*gEye[2] );
 	float eyeAngle = atan2( gEye[0], gEye[2] );
 	float eyePosition_vector[ELEMENTS_PER_VERTEX];				// Container for eye position sent to shaders.
+	float view_matrix[ELEMENTS_PER_MATRIX];						// Containers for view and projection matrices.
+	float proj_matrix[ELEMENTS_PER_MATRIX];
 
 	// Frame rate variables.
 	long gNewTicks, gOldTicks = duration_cast<milliseconds>( system_clock::now().time_since_epoch() ).count();
@@ -592,7 +701,7 @@ int main( int argc, const char * argv[] )
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 		ogl.setLighting( gLight, LightView );
-		renderScene( LightProjection, LightView, Model, currentTime );
+		renderScene( gLight.Projection, LightView, Model, currentTime );
 		glBindFramebuffer( GL_FRAMEBUFFER, 0 );						// Unbind: return control to normal draw framebuffer.
 
 		/////////////////////////////// Second pass: render scene to G-Buffer textures /////////////////////////////////
@@ -605,7 +714,43 @@ int main( int argc, const char * argv[] )
 		renderScene( Proj, Camera, Model, currentTime );
 		glBindFramebuffer( GL_FRAMEBUFFER, 0 );						// Unbind: return control to normal draw framebuffer.
 
-		///////////////////////// Third pass: lighting pass using G-buffer and RSM textures ////////////////////////////
+		/////////////////////////////// Third pass: generate the SSAO occlusion factor /////////////////////////////////
+
+		if( gEnableSSAO )
+		{
+			glBindFramebuffer( GL_FRAMEBUFFER, ssaoFBO );
+			glClear( GL_COLOR_BUFFER_BIT );
+			ogl.useProgram( generateSSAOProgram );
+
+			// Enable G-buffer position and normal textures, and the noise texture.
+			glActiveTexture( GL_TEXTURE0 );
+			glBindTexture( GL_TEXTURE_2D, gPosition );				// Positions in world space.
+			glActiveTexture( GL_TEXTURE1 );
+			glBindTexture( GL_TEXTURE_2D, gNormal );				// Normals in world space.
+			glActiveTexture( GL_TEXTURE2 );
+			glBindTexture( GL_TEXTURE_2D, ssaoNoiseTexture );		// Noise texture sampler.
+
+			Tx::toOpenGLMatrix( view_matrix, Camera );				// Send View and Projection matrices.
+			Tx::toOpenGLMatrix( proj_matrix, Proj );
+			glUniformMatrix4fv( glGetUniformLocation( generateSSAOProgram, "View" ), 1, GL_FALSE, view_matrix );
+			glUniformMatrix4fv( glGetUniformLocation( generateSSAOProgram, "Projection" ), 1, GL_FALSE, proj_matrix );
+			ogl.renderNDCQuad();
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+			////////////////////////////// Fourth pass: blur the SSAO occlusion factor /////////////////////////////////
+
+			glBindFramebuffer( GL_FRAMEBUFFER, ssaoBlurFBO );
+			glClear( GL_COLOR_BUFFER_BIT );
+			ogl.useProgram( blurSSAOProgram );
+
+			// Enable SSAO occlusion texture filled at the previous pass.
+			glActiveTexture( GL_TEXTURE0 );
+			glBindTexture( GL_TEXTURE_2D, ssaoFactor );
+			ogl.renderNDCQuad();
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		}
+
+		///////////////////////// Fourth pass: lighting pass using G-buffer and RSM textures ///////////////////////////
 
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 		ogl.useProgram( renderingProgram );							// Using deferred rendering: shade scene.
@@ -628,11 +773,16 @@ int main( int argc, const char * argv[] )
 		glActiveTexture( GL_TEXTURE6 );
 		glBindTexture( GL_TEXTURE_2D, gAlbedoSpecular );			// Albedo + specular shininess.
 		glActiveTexture( GL_TEXTURE7 );
-		glBindTexture( GL_TEXTURE_2D, gPosLightSpace );				// Flag for using Blinn-Phong reflectance model.
+		glBindTexture( GL_TEXTURE_2D, gPosLightSpace );				// Position in light projective space and flag for using Blinn-Phong reflectance model.
+
+		// Enable SSAO textures.
+		glActiveTexture( GL_TEXTURE8 );
+		glBindTexture( GL_TEXTURE_2D, ssaoBlurFactor );				// SSAO blurred factor texture.
 
 		ogl.setLighting( gLight, Camera, false );					// Send light properties (in world space).
 		Tx::toOpenGLMatrix( eyePosition_vector, gEye );
 		glUniform3fv( glGetUniformLocation( renderingProgram, "eyePosition" ), 1, eyePosition_vector );
+		glUniform1i( glGetUniformLocation( renderingProgram, "enableSSAO" ), gEnableSSAO );								// SSAO enabled?
 		ogl.renderNDCQuad();										// Render lit scene into a unit NDC quad.
 
 		/////////////////////////////////////////////// Rendering text /////////////////////////////////////////////////
