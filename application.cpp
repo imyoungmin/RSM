@@ -32,6 +32,7 @@ bool gLocked;							// Track if mouse button is pressed down.
 bool gUsingArrowKey;					// Track if we are using the arrow keys for rotating scene.
 bool gRotatingLights;					// Enable/disable rotating lights about the scene.
 bool gRotatingCamera;					// Enable/disable rotating camera.
+bool gEnableSSAO;						// Enable use of screen space ambient occlusion.
 float gZoom;							// Camera zoom.
 const float ZOOM_IN = 1.015;
 const float ZOOM_OUT = 0.985;
@@ -161,6 +162,12 @@ void keyCallback( GLFWwindow* window, int key, int scancode, int action, int mod
 			if( !gRotatingLights )
 				gRotatingCamera = !gRotatingCamera;
 			break;
+		case GLFW_KEY_O:
+			gEnableSSAO = !gEnableSSAO;
+			if( gEnableSSAO )
+				cout << "[!] SSAO enabled" << endl;
+			else
+				cout << "[!] SSAO disabled" << endl;
 		default: return;
 	}
 }
@@ -300,6 +307,7 @@ int main( int argc, const char * argv[] )
 	gRotatingLights = false;			// Start with still lights.
 	gRotatingCamera = false;
 	gUsingArrowKey = false;				// Track pressing action of arrow keys.
+	gEnableSSAO = true;
 	gZoom = 1.0;						// Camera zoom.
 	
 	GLFWwindow* window;
@@ -707,36 +715,39 @@ int main( int argc, const char * argv[] )
 
 		/////////////////////////////// Third pass: generate the SSAO occlusion factor /////////////////////////////////
 
-		glBindFramebuffer( GL_FRAMEBUFFER, ssaoFBO );
-		glClear( GL_COLOR_BUFFER_BIT );
-		ogl.useProgram( generateSSAOProgram );
+		if( gEnableSSAO )
+		{
+			glBindFramebuffer( GL_FRAMEBUFFER, ssaoFBO );
+			glClear( GL_COLOR_BUFFER_BIT );
+			ogl.useProgram( generateSSAOProgram );
 
-		// Enable G-buffer position and normal textures, and the noise texture.
-		glActiveTexture( GL_TEXTURE0 );
-		glBindTexture( GL_TEXTURE_2D, gPosition );					// Positions in world space.
-		glActiveTexture( GL_TEXTURE1 );
-		glBindTexture( GL_TEXTURE_2D, gNormal );					// Normals in world space.
-		glActiveTexture( GL_TEXTURE2 );
-		glBindTexture( GL_TEXTURE_2D, ssaoNoiseTexture );			// Noise texture sampler.
+			// Enable G-buffer position and normal textures, and the noise texture.
+			glActiveTexture( GL_TEXTURE0 );
+			glBindTexture( GL_TEXTURE_2D, gPosition );				// Positions in world space.
+			glActiveTexture( GL_TEXTURE1 );
+			glBindTexture( GL_TEXTURE_2D, gNormal );				// Normals in world space.
+			glActiveTexture( GL_TEXTURE2 );
+			glBindTexture( GL_TEXTURE_2D, ssaoNoiseTexture );		// Noise texture sampler.
 
-		Tx::toOpenGLMatrix( view_matrix, Camera );					// Send View and Projection matrices.
-		Tx::toOpenGLMatrix( proj_matrix, Proj );
-		glUniformMatrix4fv( glGetUniformLocation( generateSSAOProgram, "View" ), 1, GL_FALSE, view_matrix );
-		glUniformMatrix4fv( glGetUniformLocation( generateSSAOProgram, "Projection" ), 1, GL_FALSE, proj_matrix );
-		ogl.renderNDCQuad();
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			Tx::toOpenGLMatrix( view_matrix, Camera );				// Send View and Projection matrices.
+			Tx::toOpenGLMatrix( proj_matrix, Proj );
+			glUniformMatrix4fv( glGetUniformLocation( generateSSAOProgram, "View" ), 1, GL_FALSE, view_matrix );
+			glUniformMatrix4fv( glGetUniformLocation( generateSSAOProgram, "Projection" ), 1, GL_FALSE, proj_matrix );
+			ogl.renderNDCQuad();
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-		//////////////////////////////// Fourth pass: blur the SSAO occlusion factor ///////////////////////////////////
+			////////////////////////////// Fourth pass: blur the SSAO occlusion factor /////////////////////////////////
 
-		glBindFramebuffer( GL_FRAMEBUFFER, ssaoBlurFBO );
-		glClear( GL_COLOR_BUFFER_BIT );
-		ogl.useProgram( blurSSAOProgram );
+			glBindFramebuffer( GL_FRAMEBUFFER, ssaoBlurFBO );
+			glClear( GL_COLOR_BUFFER_BIT );
+			ogl.useProgram( blurSSAOProgram );
 
-		// Enable SSAO occlusion texture filled at the previous pass.
-		glActiveTexture( GL_TEXTURE0 );
-		glBindTexture( GL_TEXTURE_2D, ssaoFactor );
-		ogl.renderNDCQuad();
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			// Enable SSAO occlusion texture filled at the previous pass.
+			glActiveTexture( GL_TEXTURE0 );
+			glBindTexture( GL_TEXTURE_2D, ssaoFactor );
+			ogl.renderNDCQuad();
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		}
 
 		///////////////////////// Fourth pass: lighting pass using G-buffer and RSM textures ///////////////////////////
 
@@ -770,6 +781,7 @@ int main( int argc, const char * argv[] )
 		ogl.setLighting( gLight, Camera, false );					// Send light properties (in world space).
 		Tx::toOpenGLMatrix( eyePosition_vector, gEye );
 		glUniform3fv( glGetUniformLocation( renderingProgram, "eyePosition" ), 1, eyePosition_vector );
+		glUniform1i( glGetUniformLocation( renderingProgram, "enableSSAO" ), gEnableSSAO );								// SSAO enabled?
 		ogl.renderNDCQuad();										// Render lit scene into a unit NDC quad.
 
 		/////////////////////////////////////////////// Rendering text /////////////////////////////////////////////////

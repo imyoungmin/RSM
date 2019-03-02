@@ -41,6 +41,8 @@ uniform vec4 lightPosition;							// In world space.
 uniform vec3 lightColor;							// Only RGB.
 uniform vec3 eyePosition;							// Viewer position in world space.
 
+uniform bool enableSSAO;							// Use or not SSAO.
+
 // Used for searching and filtering the depth/shadow map.
 const vec2 poissonDisk[PCSS_SAMPLES] = vec2[PCSS_SAMPLES](
 	vec2(0.19483898, -0.04906884), vec2(-0.20130208, -0.1598451), vec2(-0.17657379, 0.27214397), vec2(-0.18434988, 0.71673575),
@@ -188,9 +190,14 @@ void main( void )
 	vec3 projFrag = texture( sGPosLightSpace, oTexCoords ).rgb;
 	bool useBlinnPhong = texture( sGPosLightSpace, oTexCoords ).a != 0.0;
 
-	// Retrieve data from the SSAO occlusion sampler.
-	float ambientOcclusion = texture( sSSAOFactor, oTexCoords ).r;
-	vec3 ambientColor = diffuseColor * ambientOcclusion * SSAO_AMBIENT_WEIGHT;
+	// Retrieve data from the SSAO occlusion sampler if it is enabled.
+	float ambientOcclusion = 0.0;
+	vec3 ambientColor = diffuseColor * 0.1;
+	if( enableSSAO )
+	{
+		ambientOcclusion = texture( sSSAOFactor, oTexCoords ).r;
+		ambientColor = diffuseColor * ambientOcclusion * SSAO_AMBIENT_WEIGHT;
+	}
 
 	float shadow = 0;												// PCSS shadow result for this fragment.
 	vec3 eColor = vec3( 0 );										// Indirect lighting works only when normals are given.
@@ -230,5 +237,5 @@ void main( void )
 	float lAttenuation = 1.0 / ( LIGHT_CONSTANT_PARAM + LIGHT_LINEAR_PARAM * lDistance + LIGHT_QUADRATIC_PARAM * lDistance * lDistance );
 
 	// Fragment color.
-	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * ( 1.0 - SSAO_AMBIENT_WEIGHT ) * lAttenuation, 1.0 );
+	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * ( 1.0 - ( enableSSAO ? SSAO_AMBIENT_WEIGHT : 0.0 ) ) * lAttenuation, 1.0 );
 }
