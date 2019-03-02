@@ -203,7 +203,7 @@ void main( void )
 	vec3 eColor = vec3( 0 );										// Indirect lighting works only when normals are given.
 	if( useBlinnPhong )												// Use Blinn-Phong reflectance model?
 	{
-		vec3 N = normalize( texture( sGNormal, oTexCoords ).rgb );
+		vec3 N = texture( sGNormal, oTexCoords ).rgb;
 		vec3 E = normalize( eyePosition - position );				// View direction.
 		vec3 L = normalize( lightPosition.xyz - position );			// Light direction.
 		vec3 H = normalize( L + E );								// Half vector.

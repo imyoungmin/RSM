@@ -700,7 +700,7 @@ int main( int argc, const char * argv[] )
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 		ogl.setLighting( gLight, LightView );
-		renderScene( LightProjection, LightView, Model, currentTime );
+		renderScene( gLight.Projection, LightView, Model, currentTime );
 		glBindFramebuffer( GL_FRAMEBUFFER, 0 );						// Unbind: return control to normal draw framebuffer.
 
 		/////////////////////////////// Second pass: render scene to G-Buffer textures /////////////////////////////////
