@@ -479,22 +479,12 @@ int main( int argc, const char * argv[] )
 
 	////////////////////////////////// Generating random samples in a unit disk ////////////////////////////////////////
 
-	const size_t N_SAMPLES = 100;
-	std::random_device rd;											// Request random data from OS.
-	std::mt19937 generator( rd() );
-	uniform_real_distribution<float> uniform( 0, 1 );
 	vector<float> rsmSamples;
-	for( int i = 0; i < N_SAMPLES; i++ )
-	{
-		float ci1 = uniform( generator );							// Generate two uniform random numbers.
-		float ci2 = uniform( generator );
-		rsmSamples.push_back( static_cast<float>( ci1 * sin( 2.0 * M_PI * ci2 ) ) );
-		rsmSamples.push_back( static_cast<float>( ci2 * cos( 2.0 * M_PI * ci2 ) ) );
-	}
-
+	const auto N_SAMPLES = Tx::loadArrayOfVec2( string( conf::RESOURCES_FOLDER + "poisson151.csv" ).c_str(), rsmSamples );
+	
 	// Send samples to rendering fragment shader.
 	glUseProgram( renderingProgram );
-	glUniform2fv( glGetUniformLocation( renderingProgram, "RSMSamplePositions" ), N_SAMPLES, rsmSamples.data() );
+	glUniform2fv( glGetUniformLocation( renderingProgram, "RSMSamplePositions" ), static_cast<GLint>( N_SAMPLES ), rsmSamples.data() );
 
 	////////////////////////////////// Setting up deferred rendering in a G-Buffer /////////////////////////////////////
 
@@ -579,14 +569,18 @@ int main( int argc, const char * argv[] )
 		cerr << "[SSAO] Framebuffer not complete!" << endl;
 
 	// Generate samples to be used in the view-space normal hemisphere of a fragment.
+	std::random_device rd;											// Request random data from OS.
+	std::mt19937 generator( rd() );
+	uniform_real_distribution<float> uniform( 0, 1 );
+	
 	const int SSAO_KERNEL_SIZE = 48;
 	vector<float> ssaoKernel;
-	for( int i = 0; i < 64; ++i)
+	for( int i = 0; i < SSAO_KERNEL_SIZE; ++i)
 	{
 		vec3 sample = { uniform( generator ) * 2.0 - 1.0, uniform( generator ) * 2.0 - 1.0, uniform( generator ) };
 		sample = normalise( sample );
 		sample *= uniform( generator );
-		float scale = i / 64.0f;
+		float scale = i / static_cast<float>( SSAO_KERNEL_SIZE );
 
 		// Concentrate samples more towards the center of the kernel.
 		scale = 0.1f + scale * scale * ( 1.0f - 0.1f );
