@@ -271,24 +271,37 @@ void resizeCallback( GLFWwindow* window, int w, int h )
  * @param View The 4x4 view matrix.
  * @param Model Any previously built 4x4 model matrix (usually containing current zoom and scene rotation as provided by arcball).
  * @param currentTime Current step.
+ * @param objTextureUnit Which texture unit enable for rendering the 3D object model's texture.
  */
-void renderScene( const mat44& Projection, const mat44& View, const mat44& Model, double currentTime )
+void renderScene( const mat44& Projection, const mat44& View, const mat44& Model, double currentTime, unsigned int objTextureUnit = 0 )
 {
-	// Statue.
-	ogl.setColor( 0.65, 0.65, 0.65, 1.0, -1.0f );
-	ogl.render3DObject( Projection, View, Model * Tx::translate( -0.5, 0.0, -2.0 ) * Tx::rotate( 5.0 * M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 1.35 ), "mercury" );
-
-	// Left wall.
-	ogl.setColor( 0.8941, 0.0, 0.4862, 1.0, -1.0f );
-	ogl.drawCube( Projection, View, Model * Tx::rotate( -M_PI / 4.0, Tx::Y_AXIS ) * Tx::translate( -3.0, 3.0, 0.0 ) * Tx::scale( 0.05, 12.0, 12.0 ) );
-
-	// Right wall.
-	ogl.setColor( 0.06274, 0.5843, 0.8941, 1.0, -1.0f );
-	ogl.drawCube( Projection, View, Model * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::translate( 3.0, 3.0, 0.0 ) * Tx::scale( 0.05, 12.0, 12.0 ) );
+	// Circular base.
+	ogl.setColor( 0.9, 0.9, 0.9, 1.0, -1.0f );
+	ogl.render3DObject( Projection, View, Model * Tx::translate( 0, -0.275, 0 ), "base", true, objTextureUnit );
 	
-	// Bottom wall.
-	ogl.setColor( 1.0, 1.0, 0.0, 1.0, -1.0f );
-	ogl.drawCube( Projection, View, Model * Tx::translate( 0.0, -0.025, 0.0 ) * Tx::rotate( M_PI / 4.0, Tx::Y_AXIS ) * Tx::scale( 12.0, 0.05, 12.0 ) );
+	// Central arch.
+	ogl.setColor( 0.9, 0.8, 0.1, 1.0, -1.0f );
+	ogl.render3DObject( Projection, View, Model * Tx::translate( 0, 0, 0 ) * Tx::scale( 1.3 ), "arch" );
+	
+	// Statue.
+	ogl.setColor( 0.7, 0.7, 0.7, 1.0, - 1.0f );
+	ogl.render3DObject( Projection, View, Model * Tx::translate( 0, 0, 1 ) * Tx::rotate( -M_PI / 3.0, Tx::Y_AXIS ) * Tx::scale( 0.6 ), "olympian" );
+
+	// Left arch.
+	ogl.setColor( 0.06274, 0.5843, 0.8941, 1.0, -1.0f );
+	ogl.render3DObject( Projection, View, Model * Tx::translate( -4.2, 0, 3.2 ) * Tx::rotate( M_PI_4, Tx::Y_AXIS ) * Tx::scale( 1.1 ), "arch" );
+	
+	// Left vases.
+	ogl.setColor( 0.7, 0.7, 0.7, 1.0, -1.0f );
+	ogl.render3DObject( Projection, View, Model * Tx::translate( -4.2, 0, 3.2 ) * Tx::rotate( M_PI_4, Tx::Y_AXIS ) * Tx::scale( 0.25 ), "vase" );
+	
+	// Right arch.
+	ogl.setColor( 0.8941, 0.0, 0.4862, 1.0, -1.0f );
+	ogl.render3DObject( Projection, View, Model * Tx::translate( 4.2, 0, 3.2 ) * Tx::rotate( -M_PI_4, Tx::Y_AXIS ) * Tx::scale( 1.1 ), "arch" );
+	
+	// Right vases.
+	ogl.setColor( 0.7, 0.7, 0.7, 1.0, -1.0f );
+	ogl.render3DObject( Projection, View, Model * Tx::translate( 4.2, 0, 3.2 ) * Tx::rotate( -M_PI_4, Tx::Y_AXIS ) * Tx::scale( 0.25 ), "vase" );
 }
 
 /**
@@ -299,8 +312,8 @@ void renderScene( const mat44& Projection, const mat44& View, const mat44& Model
  */
 int main( int argc, const char * argv[] )
 {
-	gPointOfInterest = { 0, 3, 0 };		// Camera controls globals.
-	gEye = { 5, 5, 5 };
+	gPointOfInterest = { 0, 2, 0 };		// Camera controls globals.
+	gEye = { 6, 5, 11 };
 	gUp = Tx::Y_AXIS;
 	
 	gLocked = false;					// Track if mouse button is pressed down.
@@ -388,13 +401,13 @@ int main( int argc, const char * argv[] )
 	
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
 	
-	float lNearPlane = 0.01f, lFarPlane = 50.0f;								// Setting up the light projection matrix.
+	float lNearPlane = 0.01f, lFarPlane = 80.0f;								// Setting up the light projection matrix.
 	float lSide = 20.0f;
 	mat44 LightProjection = Tx::ortographic( -lSide, lSide, -lSide, lSide, lNearPlane, lFarPlane );
 
-	const double lRadius = 4.0;
-	const double phi = 0.0;
-	const float lHeight = 5.0;
+	const double lRadius = 7.0;
+	const double phi = -0.1;
+	const float lHeight = 7.0;
 	const float lRGB[3] = { 0.85, 0.85, 0.85 };
 	gLight = Light( { lRadius * sin( phi ), lHeight, lRadius * cos( phi ) }, { lRGB[0], lRGB[1], lRGB[2] }, LightProjection );
 	
@@ -466,7 +479,7 @@ int main( int argc, const char * argv[] )
 
 	////////////////////////////////// Generating random samples in a unit disk ////////////////////////////////////////
 
-	const size_t N_SAMPLES = 150;
+	const size_t N_SAMPLES = 100;
 	std::random_device rd;											// Request random data from OS.
 	std::mt19937 generator( rd() );
 	uniform_real_distribution<float> uniform( 0, 1 );
@@ -646,7 +659,10 @@ int main( int argc, const char * argv[] )
 	glFrontFace( GL_CCW );
 
 	ogl.setUsingUniformScaling( false );
-	ogl.create3DObject( "mercury", "mercury10.obj" );
+	ogl.create3DObject( "base", "base.obj", "rough.png" );
+	ogl.create3DObject( "arch", "arch.obj" );
+	ogl.create3DObject( "olympian", "olympian.obj" );
+	ogl.create3DObject( "vase", "vase.obj" );
 	
 	float eyeY = gEye[1];										// Build eye components from its intial value.
 	float eyeXZRadius = sqrt( gEye[0]*gEye[0] + gEye[2]*gEye[2] );
@@ -701,7 +717,7 @@ int main( int argc, const char * argv[] )
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 		ogl.setLighting( gLight, LightView );
-		renderScene( gLight.Projection, LightView, Model, currentTime );
+		renderScene( gLight.Projection, LightView, Model, currentTime, 0 );		// Use texture unit 0 for object's texture.
 		glBindFramebuffer( GL_FRAMEBUFFER, 0 );						// Unbind: return control to normal draw framebuffer.
 
 		/////////////////////////////// Second pass: render scene to G-Buffer textures /////////////////////////////////
@@ -711,7 +727,7 @@ int main( int argc, const char * argv[] )
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 		ogl.useProgram( generateGBufferProgram );
 		ogl.setLighting( gLight, Camera );							// Send light position and color.
-		renderScene( Proj, Camera, Model, currentTime );
+		renderScene( Proj, Camera, Model, currentTime, 0 );			// Use texture unit 0 for object's texture.
 		glBindFramebuffer( GL_FRAMEBUFFER, 0 );						// Unbind: return control to normal draw framebuffer.
 
 		/////////////////////////////// Third pass: generate the SSAO occlusion factor /////////////////////////////////

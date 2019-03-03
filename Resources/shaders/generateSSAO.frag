@@ -3,9 +3,9 @@
 layout (location = 0) out float TexSSAOFactor;	// Outputting to a single render attachment, which is the NON occlusion factor.
 
 const int KERNEL_SIZE = 48;
-const float HEMISPHERE_RADIUS = 0.5;
-const float BIAS = 0.07;
-const float INTENSITY = 5.0;
+const float HEMISPHERE_RADIUS = 0.4;
+const float BIAS = 0.025;
+const float INTENSITY = 1.4;
 
 in vec2 oTexCoords;
 

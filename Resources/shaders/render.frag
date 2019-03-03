@@ -1,9 +1,9 @@
 #version 410 core
 
 // Reflective shadow maps constants.
-const uint N_SAMPLES = 150;
-const float R_MAX = 0.09;							// Maximum sampling radius.
-const float RSM_INTENSITY = 0.4;
+const uint N_SAMPLES = 100;
+const float R_MAX = 0.07;							// Maximum sampling radius.
+const float RSM_INTENSITY = 0.5;
 
 // Percentage closer soft shadow constants.
 const uint PCSS_SAMPLES = 31;
@@ -13,7 +13,7 @@ const float LIGHT_FRUSTUM_WIDTH = 20.0;
 const float LIGHT_SIZE_UV = (LIGHT_WORLD_SIZE / LIGHT_FRUSTUM_WIDTH);	// Assuming that LIGHT_FRUSTUM_WIDTH = LIGHT_FRUSTUM_HEIGHT.
 
 // Screen Space Ambient Occlusion constants.
-const float SSAO_AMBIENT_WEIGHT = 0.3;
+const float SSAO_AMBIENT_WEIGHT = 0.25;
 
 // Light attenuation constants.
 const float LIGHT_CONSTANT_PARAM = 1.0;
@@ -139,7 +139,7 @@ float applyPCFilter( vec2 uv, float zReceiver, float filterRadiusUV, float bias 
 	float shadow = 0;
 	for( int i = 0; i < PCSS_SAMPLES; i++ )
 	{
-		vec2 offset = poissonDisk[i] * max( bias/3.0, filterRadiusUV );
+		vec2 offset = poissonDisk[i] * max( bias, filterRadiusUV );
 		float pcfDepth = texture( sRSMDepth, uv + offset ).r;
 		shadow += ( zReceiver - pcfDepth > bias )? 1.0 : 0.0;
 	}
@@ -160,7 +160,7 @@ float pcss( vec3 projFrag, float incidence )
 	if( zReceiver > 1.0 )							// Anything farther than the light frustrum should be lit.
 		return 0;
 
-	float bias = max( 0.004 * ( 1.0 - incidence ), 0.0045 );
+	float bias = max( 0.001 * ( 1.0 - incidence ), 0.002 );
 
 	// Step 1: Blocker search.
 	float avgBlockerDepth = findBlockerDepth( uv, zReceiver, 0.0 );
@@ -233,8 +233,9 @@ void main( void )
 	}
 
 	// Light attenuation.
-	float lDistance = length( lightPosition.xyz - position );
-	float lAttenuation = 1.0 / ( LIGHT_CONSTANT_PARAM + LIGHT_LINEAR_PARAM * lDistance + LIGHT_QUADRATIC_PARAM * lDistance * lDistance );
+//	float lDistance = length( lightPosition.xyz - position );
+//	float lAttenuation = 1.0 / ( LIGHT_CONSTANT_PARAM + LIGHT_LINEAR_PARAM * lDistance + LIGHT_QUADRATIC_PARAM * lDistance * lDistance );
+	float lAttenuation = 1.0;
 
 	// Fragment color.
 	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * ( 1.0 - ( enableSSAO ? SSAO_AMBIENT_WEIGHT : 0.0 ) ) * lAttenuation, 1.0 );
