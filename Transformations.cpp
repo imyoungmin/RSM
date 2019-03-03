@@ -185,7 +185,40 @@ mat33 Tx::getInvTransModelView( const mat44& MV, bool uniformTransform )
 	return Q * inv( R ).t();
 }
 
-
+/**
+ * Load coordinates of a 2D vectors from a file and place them in a linear array.
+ * @param file Full path of file to read from.
+ * @param output Array of results.
+ * @return Number of 2D points loaded.
+ */
+size_t Tx::loadArrayOfVec2( const char *file, std::vector<float>& output )
+{
+	std::ifstream filePtr( file );		// Open file stream.
+	if( !filePtr.good() )
+	{
+		std::cerr << "Unable to open file " << file << std::endl;
+		exit( EXIT_FAILURE );
+	}
+	
+	size_t vecCount = 0;				// Start afresh: clean any existing contents in output vector.
+	output.clear();
+	std::string line;
+	while ( filePtr.good() )			// Read line by line.
+	{
+		getline( filePtr, line );
+		float x, y;
+		int n = sscanf( line.c_str(), "%f,%f", &x, &y );
+		
+		if( n == 2 )					// Successfully read x and y?
+		{
+			output.push_back( x );
+			output.push_back( y );
+			vecCount++;
+		}
+	}
+	
+	return vecCount;
+}
 
 
 

@@ -25,6 +25,7 @@ public:
 	static mat44 ortographic( double left, double right, double bottom, double top, double near, double far );
 	static void toOpenGLMatrix( float* destination, const mat& source );
 	static mat33 getInvTransModelView( const mat44& MV, bool uniformTransform = true );
+	static size_t loadArrayOfVec2( const char* file, std::vector<float>& output );
 };
 
 #endif /* Transformations_h */
