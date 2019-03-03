@@ -493,6 +493,7 @@ int main( int argc, const char * argv[] )
 	glBindFramebuffer( GL_FRAMEBUFFER, gBuffer );
 	GLuint gPosition, gNormal, gAlbedoSpecular;						// Texture IDs for different targets of G-Buffer.
 	GLuint gPosLightSpace;											// This one in particular sends the position in projective light space + use Phong shading flag.
+	GLuint gDepth;													// Depth buffer.
 
 	// World space position color buffer.
 	glGenTextures( 1, &gPosition );
@@ -527,17 +528,21 @@ int main( int argc, const char * argv[] )
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gPosLightSpace, 0 );	// Attachment 3.
+	
+	// Depth buffer.
+	glGenTextures( 1, &gDepth );
+	glBindTexture( GL_TEXTURE_2D, gDepth );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, fbWidth, fbHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER );	// By doing this, anything farther than view space will be the farthest.
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER );
+	glTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, whiteColor );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, gDepth, 0 );			// There's only at most one depth attachment/buffer.
 
 	// Tell OpenGL which color attachments we'll use (of this framebuffer) for rendering.
 	GLuint gAttachments[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
 	glDrawBuffers( 4, gAttachments );
-
-	// Create and attach depth buffer (renderbuffer).
-	GLuint rboDepth;									// We want a full render buffer object.
-	glGenRenderbuffers( 1, &rboDepth);
-	glBindRenderbuffer( GL_RENDERBUFFER, rboDepth );
-	glRenderbufferStorage( GL_RENDERBUFFER, GL_DEPTH_COMPONENT, fbWidth, fbHeight );
-	glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth );		// Attach a render buffer to currently bound frame buffer object.
 
 	// Check that the framebuffer is complete.
 	if( glCheckFramebufferStatus( GL_FRAMEBUFFER ) != GL_FRAMEBUFFER_COMPLETE )
@@ -550,7 +555,8 @@ int main( int argc, const char * argv[] )
 	glUniform1i( glGetUniformLocation( renderingProgram, "sGNormal" ), 5 );
 	glUniform1i( glGetUniformLocation( renderingProgram, "sGAlbedoSpecular" ), 6 );
 	glUniform1i( glGetUniformLocation( renderingProgram, "sGPosLightSpace" ), 7 );
-	glUniform1i( glGetUniformLocation( renderingProgram, "sSSAOFactor"), 8 );							// SSAO factor.
+	glUniform1i( glGetUniformLocation( renderingProgram, "sGDepth" ), 8 );
+	glUniform1i( glGetUniformLocation( renderingProgram, "sSSAOFactor"), 9 );							// SSAO factor.
 
 	///////////////////////////// Setting up the SSAO generator buffer object textures /////////////////////////////////
 
@@ -673,7 +679,7 @@ int main( int argc, const char * argv[] )
 	// Rendering loop.
 	while( !glfwWindowShouldClose( window ) )
 	{
-		glClearColor( 0.0f, 0.0f, 0.00f, 1.0f );
+		glClearColor( 0, 0, 0, 1 );
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 		glEnable( GL_CULL_FACE );
 		
@@ -784,9 +790,11 @@ int main( int argc, const char * argv[] )
 		glBindTexture( GL_TEXTURE_2D, gAlbedoSpecular );			// Albedo + specular shininess.
 		glActiveTexture( GL_TEXTURE7 );
 		glBindTexture( GL_TEXTURE_2D, gPosLightSpace );				// Position in light projective space and flag for using Blinn-Phong reflectance model.
+		glActiveTexture( GL_TEXTURE8 );
+		glBindTexture( GL_TEXTURE_2D, gDepth );						// Depth buffer.
 
 		// Enable SSAO textures.
-		glActiveTexture( GL_TEXTURE8 );
+		glActiveTexture( GL_TEXTURE9 );
 		glBindTexture( GL_TEXTURE_2D, ssaoBlurFactor );				// SSAO blurred factor texture.
 
 		ogl.setLighting( gLight, Camera, false );					// Send light properties (in world space).
