@@ -480,7 +480,7 @@ int main( int argc, const char * argv[] )
 	////////////////////////////////// Generating random samples in a unit disk ////////////////////////////////////////
 
 	vector<float> rsmSamples;
-	const auto N_SAMPLES = Tx::loadArrayOfVec2( string( conf::RESOURCES_FOLDER + "poisson151.csv" ).c_str(), rsmSamples );
+	const auto N_SAMPLES = Tx::loadArrayOfVec2( string( conf::RESOURCES_FOLDER + "random/poisson151.csv" ).c_str(), rsmSamples );
 	
 	// Send samples to rendering fragment shader.
 	glUseProgram( renderingProgram );
