@@ -493,6 +493,7 @@ int main( int argc, const char * argv[] )
 	glBindFramebuffer( GL_FRAMEBUFFER, gBuffer );
 	GLuint gPosition, gNormal, gAlbedoSpecular;						// Texture IDs for different targets of G-Buffer.
 	GLuint gPosLightSpace;											// This one in particular sends the position in projective light space + use Phong shading flag.
+	GLuint gVPosition, gVNormal;									// The position and normal in view space.  These are used in SSAO.
 
 	// World space position color buffer.
 	glGenTextures( 1, &gPosition );
@@ -524,13 +525,33 @@ int main( int argc, const char * argv[] )
 	glGenTextures( 1, &gPosLightSpace );
 	glBindTexture( GL_TEXTURE_2D, gPosLightSpace );
 	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );								// Don't want to query fragments beyond border.
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gPosLightSpace, 0 );	// Attachment 3.
+	
+	// Position in view space color buffer.
+	glGenTextures( 1, &gVPosition );
+	glBindTexture( GL_TEXTURE_2D, gVPosition );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );								// Don't want to query fragments beyond border.
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT4, GL_TEXTURE_2D, gVPosition, 0 );		// Attachment 4.
+	
+	// Normal in view space color buffer.
+	glGenTextures( 1, &gVNormal );
+	glBindTexture( GL_TEXTURE_2D, gVNormal );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB32F, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT5, GL_TEXTURE_2D, gVNormal, 0 );			// Attachment 5.
 
 	// Tell OpenGL which color attachments we'll use (of this framebuffer) for rendering.
-	GLuint gAttachments[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
-	glDrawBuffers( 4, gAttachments );
+	GLuint gAttachments[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3, GL_COLOR_ATTACHMENT4, GL_COLOR_ATTACHMENT5 };
+	glDrawBuffers( 6, gAttachments );
 
 	// Create and attach depth buffer (renderbuffer).
 	GLuint rboDepth;									// We want a full render buffer object.
@@ -613,8 +634,8 @@ int main( int argc, const char * argv[] )
 
 	// Set uniforms in SSAO generation program.
 	glUseProgram( generateSSAOProgram );
-	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sGPosition" ), 0 );	// Texture units begin at 0 in this case.
-	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sGNormal" ), 1 );
+	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sGVPosition" ), 0 );	// Texture units begin at 0 in this case.
+	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sGVNormal" ), 1 );
 	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sSSAONoiseTexture" ), 2 );
 	glUniform1f( glGetUniformLocation( generateSSAOProgram, "frameBufferWidth" ), fbWidth );							// Framebuffer width and height.
 	glUniform1f( glGetUniformLocation( generateSSAOProgram, "frameBufferHeight" ), fbHeight );
@@ -662,8 +683,7 @@ int main( int argc, const char * argv[] )
 	float eyeXZRadius = sqrt( gEye[0]*gEye[0] + gEye[2]*gEye[2] );
 	float eyeAngle = atan2( gEye[0], gEye[2] );
 	float eyePosition_vector[ELEMENTS_PER_VERTEX];				// Container for eye position sent to shaders.
-	float view_matrix[ELEMENTS_PER_MATRIX];						// Containers for view and projection matrices.
-	float proj_matrix[ELEMENTS_PER_MATRIX];
+	float proj_matrix[ELEMENTS_PER_MATRIX];						// Containers for view and projection matrices.
 
 	// Frame rate variables.
 	long gNewTicks, gOldTicks = duration_cast<milliseconds>( system_clock::now().time_since_epoch() ).count();
@@ -734,15 +754,13 @@ int main( int argc, const char * argv[] )
 
 			// Enable G-buffer position and normal textures, and the noise texture.
 			glActiveTexture( GL_TEXTURE0 );
-			glBindTexture( GL_TEXTURE_2D, gPosition );				// Positions in world space.
+			glBindTexture( GL_TEXTURE_2D, gVPosition );				// Positions in view space.
 			glActiveTexture( GL_TEXTURE1 );
-			glBindTexture( GL_TEXTURE_2D, gNormal );				// Normals in world space.
+			glBindTexture( GL_TEXTURE_2D, gVNormal );				// Normals in view space.
 			glActiveTexture( GL_TEXTURE2 );
 			glBindTexture( GL_TEXTURE_2D, ssaoNoiseTexture );		// Noise texture sampler.
 
-			Tx::toOpenGLMatrix( view_matrix, Camera );				// Send View and Projection matrices.
-			Tx::toOpenGLMatrix( proj_matrix, Proj );
-			glUniformMatrix4fv( glGetUniformLocation( generateSSAOProgram, "View" ), 1, GL_FALSE, view_matrix );
+			Tx::toOpenGLMatrix( proj_matrix, Proj );				// Send Projection matrix.
 			glUniformMatrix4fv( glGetUniformLocation( generateSSAOProgram, "Projection" ), 1, GL_FALSE, proj_matrix );
 			ogl.renderNDCQuad();
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);

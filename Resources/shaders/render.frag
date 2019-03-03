@@ -15,11 +15,6 @@ const float LIGHT_SIZE_UV = (LIGHT_WORLD_SIZE / LIGHT_FRUSTUM_WIDTH);	// Assumin
 // Screen Space Ambient Occlusion constants.
 const float SSAO_AMBIENT_WEIGHT = 0.25;
 
-// Light attenuation constants.
-const float LIGHT_CONSTANT_PARAM = 1.0;
-const float LIGHT_LINEAR_PARAM = 0.027;
-const float LIGHT_QUADRATIC_PARAM = 0.0028;
-
 // Shader variables.
 uniform vec2 RSMSamplePositions[N_SAMPLES];			// Array of uniformly-distributed sampling positions in a unit disk.
 
@@ -233,11 +228,6 @@ void main( void )
 		shadow = pcss( projFrag, 1 );
 	}
 
-	// Light attenuation.
-//	float lDistance = length( lightPosition.xyz - position );
-//	float lAttenuation = 1.0 / ( LIGHT_CONSTANT_PARAM + LIGHT_LINEAR_PARAM * lDistance + LIGHT_QUADRATIC_PARAM * lDistance * lDistance );
-	float lAttenuation = 1.0;
-
 	// Fragment color.
-	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * ( 1.0 - ( enableSSAO ? SSAO_AMBIENT_WEIGHT : 0.0 ) ) * lAttenuation, 1.0 );
+	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * ( 1.0 - ( enableSSAO ? SSAO_AMBIENT_WEIGHT : 0.0 ) ), 1.0 );
 }
