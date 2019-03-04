@@ -567,7 +567,7 @@ int main( int argc, const char * argv[] )
 
 	glGenTextures( 1, &ssaoFactor );						// This is the only attachment (output) from SSAO generation stage.
 	glBindTexture( GL_TEXTURE_2D, ssaoFactor );
-	glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );			// Notice: only one channel.
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, windowWidth, windowHeight, 0, GL_RGB, GL_FLOAT, nullptr );			// Notice: only one channel.
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ssaoFactor, 0 );		// Unique attachment.
@@ -622,8 +622,8 @@ int main( int argc, const char * argv[] )
 	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sGPosition" ), 0 );	// Texture units begin at 0 in this case.
 	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sGNormal" ), 1 );
 	glUniform1i( glGetUniformLocation( generateSSAOProgram, "sSSAONoiseTexture" ), 2 );
-	glUniform1f( glGetUniformLocation( generateSSAOProgram, "frameBufferWidth" ), fbWidth );							// Framebuffer width and height.
-	glUniform1f( glGetUniformLocation( generateSSAOProgram, "frameBufferHeight" ), fbHeight );
+	glUniform1f( glGetUniformLocation( generateSSAOProgram, "frameBufferWidth" ), windowWidth );							// Framebuffer width and height.
+	glUniform1f( glGetUniformLocation( generateSSAOProgram, "frameBufferHeight" ), windowHeight );
 	glUniform3fv( glGetUniformLocation( generateSSAOProgram, "ssaoSamples" ), SSAO_KERNEL_SIZE, ssaoKernel.data() );	// Kernel precomputed samples.
 	// Remains to send view and projection matrices below.
 
@@ -636,7 +636,7 @@ int main( int argc, const char * argv[] )
 
 	glGenTextures( 1, &ssaoBlurFactor );					// This is the only attachment (output) from SSAO blurring stage.
 	glBindTexture( GL_TEXTURE_2D, ssaoBlurFactor );
-	glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, fbWidth, fbHeight, 0, GL_RGB, GL_FLOAT, nullptr );			// Notice: only one channel.
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, windowWidth, windowHeight, 0, GL_RGB, GL_FLOAT, nullptr );			// Notice: only one channel.
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ssaoBlurFactor, 0 );	// Unique attachment.
@@ -734,6 +734,7 @@ int main( int argc, const char * argv[] )
 
 		if( gEnableSSAO )
 		{
+			glViewport( 0, 0, windowWidth, windowHeight );
 			glBindFramebuffer( GL_FRAMEBUFFER, ssaoFBO );
 			glClear( GL_COLOR_BUFFER_BIT );
 			ogl.useProgram( generateSSAOProgram );
@@ -768,6 +769,7 @@ int main( int argc, const char * argv[] )
 
 		///////////////////////// Fourth pass: lighting pass using G-buffer and RSM textures ///////////////////////////
 
+		glViewport( 0, 0, fbWidth, fbHeight );
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 		ogl.useProgram( renderingProgram );							// Using deferred rendering: shade scene.
 
