@@ -27,6 +27,7 @@ uniform sampler2D sGPosition;						// G-Buffer textures: positions.
 uniform sampler2D sGNormal;							// Normals.
 uniform sampler2D sGAlbedoSpecular;					// Object's RGB albedo + specular shininess.
 uniform sampler2D sGPosLightSpace;					// Fragment position in normalized reflective light space + using Blinn-Phong shading flag.
+uniform sampler2D sGDepth;							// Depth buffer texture.
 
 uniform sampler2D sSSAOFactor;						// SSAO occlusion factor sampler.
 
@@ -180,55 +181,62 @@ float pcss( vec3 projFrag, float incidence )
 void main( void )
 {
 	// Retrieve data from G-Buffer textures.
-	vec3 diffuseColor = texture( sGAlbedoSpecular, oTexCoords ).rgb * lightColor,
-		 specularColor = vec3( 0.8, 0.8, 0.8 );
-	float shininess = texture( sGAlbedoSpecular, oTexCoords ).a;
-	vec3 position = texture( sGPosition, oTexCoords ).rgb;
-	vec3 projFrag = texture( sGPosLightSpace, oTexCoords ).rgb;
-	bool useBlinnPhong = texture( sGPosLightSpace, oTexCoords ).a != 0.0;
-
-	// Retrieve data from the SSAO occlusion sampler if it is enabled.
-	float ambientOcclusion = 0.0;
-	vec3 ambientColor = diffuseColor * 0.1;
-	if( enableSSAO )
+	vec3 diffuseColor = texture( sGAlbedoSpecular, oTexCoords ).rgb;
+	
+	if( texture( sGDepth, oTexCoords ).r < 1.0 )		// Perform calculations for fragments not in the far plane (depth = 1).
 	{
-		ambientOcclusion = texture( sSSAOFactor, oTexCoords ).r;
-		ambientColor = diffuseColor * ambientOcclusion * SSAO_AMBIENT_WEIGHT;
-	}
-
-	float shadow = 0;												// PCSS shadow result for this fragment.
-	vec3 eColor = vec3( 0 );										// Indirect lighting works only when normals are given.
-	if( useBlinnPhong )												// Use Blinn-Phong reflectance model?
-	{
-		vec3 N = texture( sGNormal, oTexCoords ).rgb;
-		vec3 E = normalize( eyePosition - position );				// View direction.
-		vec3 L = normalize( lightPosition.xyz - position );			// Light direction.
-		vec3 H = normalize( L + E );								// Half vector.
-		float incidence = dot( N, L );
-
-		// Diffuse component.
-		float cDiff = max( incidence, 0.0 );
-		diffuseColor = cDiff * diffuseColor;
-
-		// Specular component.
-		if( incidence > 0 && shininess > 0.0 )						// Negative shininess turns off specular component.
+		diffuseColor *= lightColor;
+		vec3 specularColor = vec3( 0.8, 0.8, 0.8 );
+		float shininess = texture( sGAlbedoSpecular, oTexCoords ).a;
+		vec3 position = texture( sGPosition, oTexCoords ).rgb;
+		vec3 projFrag = texture( sGPosLightSpace, oTexCoords ).rgb;
+		bool useBlinnPhong = texture( sGPosLightSpace, oTexCoords ).a != 0.0;
+		
+		// Retrieve data from the SSAO occlusion sampler if it is enabled.
+		float ambientOcclusion = 0.0;
+		vec3 ambientColor = diffuseColor * 0.1;
+		if( enableSSAO )
 		{
-			float cSpec = pow( max( dot( N, H ), 0.0 ), shininess );
-			specularColor = cSpec * specularColor;
+			ambientOcclusion = texture( sSSAOFactor, oTexCoords ).r;
+			ambientColor = diffuseColor * ambientOcclusion * SSAO_AMBIENT_WEIGHT;
+		}
+		
+		float shadow = 0;												// PCSS shadow result for this fragment.
+		vec3 eColor = vec3( 0 );										// Indirect lighting works only when normals are given.
+		if( useBlinnPhong )												// Use Blinn-Phong reflectance model?
+		{
+			vec3 N = texture( sGNormal, oTexCoords ).rgb;
+			vec3 E = normalize( eyePosition - position );				// View direction.
+			vec3 L = normalize( lightPosition.xyz - position );			// Light direction.
+			vec3 H = normalize( L + E );								// Half vector.
+			float incidence = dot( N, L );
+			
+			// Diffuse component.
+			float cDiff = max( incidence, 0.0 );
+			diffuseColor = cDiff * diffuseColor;
+			
+			// Specular component.
+			if( incidence > 0 && shininess > 0.0 )						// Negative shininess turns off specular component.
+			{
+				float cSpec = pow( max( dot( N, H ), 0.0 ), shininess );
+				specularColor = cSpec * specularColor;
+			}
+			else
+				specularColor = vec3( 0.0, 0.0, 0.0 );
+			shadow = pcss( projFrag, incidence );
+			
+			// Calculate indirect lighting using the reflective shadow map.
+			eColor = indirectLighting( projFrag.xy, N, position );
 		}
 		else
+		{
 			specularColor = vec3( 0.0, 0.0, 0.0 );
-		shadow = pcss( projFrag, incidence );
-
-		// Calculate indirect lighting using the reflective shadow map.
-        eColor = indirectLighting( projFrag.xy, N, position );
+			shadow = pcss( projFrag, 1 );
+		}
+		
+		// Fragment color.
+		color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * ( 1.0 - ( enableSSAO ? SSAO_AMBIENT_WEIGHT : 0.0 ) ), 1.0 );
 	}
 	else
-	{
-		specularColor = vec3( 0.0, 0.0, 0.0 );
-		shadow = pcss( projFrag, 1 );
-	}
-
-	// Fragment color.
-	color = vec4( ambientColor + ( 1.0 - shadow ) * ( diffuseColor + specularColor + eColor ) * ( 1.0 - ( enableSSAO ? SSAO_AMBIENT_WEIGHT : 0.0 ) ), 1.0 );
+		color = vec4( diffuseColor, 1.0 );
 }
