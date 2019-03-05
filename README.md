@@ -1,19 +1,24 @@
-# Real-Time High Quality Rendering - Reflective Shadow Maps
+# Real-Time High-Quality Rendering - Reflective Shadow Maps
 By Luis Ángel  (임 영민) - All rights reserved (c) 2019
 
 **www.youngmin.com.mx**
 
 ## Functionality
 
-This OpenGL 4.1 project creates a GLFW window and renders on it a scene with geometric and textured 3D object models. 
-The scene also has 3 colored area lights that make objects cast shadows using the **Percentage Closer Soft Shadows**
-procedure.  We further support the **Blinn-Phong Reflectance Model**, and render text using FreeType and textures.
+We have implemented **Reflective Shadow Maps** (RSM), together with **Percentage-Closer Soft Shadows** (PCSS) and **Screen-
+Space Ambient Occlusion** (SSAO) for added realism and details.  Our approach works mostly with blurred textures and diffuse 3D 
+objects shaded with the **Blinn-Phong Reflectance Model**.  We have also resorted to **Deferred Rendering** to achieve interactive 
+rates when RSM and SSAO are enabled, which are, by definition, very expensive tasks in terms of GPU resources.  Finally, with regards 
+to random sampling, we are using **Poisson Disks** which provide a good even distribution of 2D points without the artifacts that 
+usually appear when employing pure uniformly distributed numbers in both PCSS and the importance driven sampling in RSM's indirect 
+lighting.
 
-To interact with the application click and drag to rotate the scene, press `L` to rotate the light sources, press `C`
-to rotate the camera, or zoom in/out using the mouse scroll button.
+This OpenGL 4.1 project creates a GLFW window and renders on it a scene with geometric and textured 3D object models.
+To interact with the application click and drag to rotate the scene, press `L` to rotate the light source, press `C`
+to rotate the camera, press `O` to enable/disable SSAO, and zoom in/out using the mouse scroll button.
 
-All of the fonts, shaders, 3D object models, and textures must be located in a `Resources` directory, and you should 
-provide its path in the `Configuration.h` header file.
+All of the fonts, shaders, 3D object models, textures, and Poisson disks (2D points) must be located in a `Resources` directory,  and you 
+should provide its path in the `Configuration.h` header file.
 
 ## Requirements
 
