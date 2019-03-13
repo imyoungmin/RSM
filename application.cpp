@@ -33,6 +33,7 @@ bool gUsingArrowKey;					// Track if we are using the arrow keys for rotating sc
 bool gRotatingLights;					// Enable/disable rotating lights about the scene.
 bool gRotatingCamera;					// Enable/disable rotating camera.
 bool gEnableSSAO;						// Enable use of screen space ambient occlusion.
+bool gEnableRSM;
 float gZoom;							// Camera zoom.
 const float ZOOM_IN = 1.015;
 const float ZOOM_OUT = 0.985;
@@ -168,6 +169,14 @@ void keyCallback( GLFWwindow* window, int key, int scancode, int action, int mod
 				cout << "[!] SSAO enabled" << endl;
 			else
 				cout << "[!] SSAO disabled" << endl;
+			break;
+		case GLFW_KEY_I:
+			gEnableRSM = !gEnableRSM;
+			if( gEnableRSM )
+				cout << "[!] RSM enabled" << endl;
+			else
+				cout << "[!] RSM disabled" << endl;
+			break;
 		default: return;
 	}
 }
@@ -321,6 +330,7 @@ int main( int argc, const char * argv[] )
 	gRotatingCamera = false;
 	gUsingArrowKey = false;				// Track pressing action of arrow keys.
 	gEnableSSAO = true;
+	gEnableRSM = false;
 	gZoom = 1.0;						// Camera zoom.
 	
 	GLFWwindow* window;
@@ -803,6 +813,7 @@ int main( int argc, const char * argv[] )
 		Tx::toOpenGLMatrix( eyePosition_vector, gEye );
 		glUniform3fv( glGetUniformLocation( renderingProgram, "eyePosition" ), 1, eyePosition_vector );
 		glUniform1i( glGetUniformLocation( renderingProgram, "enableSSAO" ), gEnableSSAO );								// SSAO enabled?
+		glUniform1i( glGetUniformLocation( renderingProgram, "enableRSM" ), gEnableRSM );								// RSM enabled?
 		ogl.renderNDCQuad();										// Render lit scene into a unit NDC quad.
 
 		/////////////////////////////////////////////// Rendering text /////////////////////////////////////////////////

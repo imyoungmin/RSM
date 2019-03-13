@@ -38,6 +38,7 @@ uniform vec3 lightColor;							// Only RGB.
 uniform vec3 eyePosition;							// Viewer position in world space.
 
 uniform bool enableSSAO;							// Use or not SSAO.
+uniform bool enableRSM;								// Use or not RSM.
 
 // Used for searching and filtering the depth/shadow map.
 const vec2 poissonDisk[PCSS_SAMPLES] = vec2[PCSS_SAMPLES](
@@ -225,7 +226,8 @@ void main( void )
 			shadow = pcss( projFrag, incidence );
 			
 			// Calculate indirect lighting using the reflective shadow map.
-			eColor = indirectLighting( projFrag.xy, N, position );
+			if( enableRSM )
+				eColor = indirectLighting( projFrag.xy, N, position );
 		}
 		else
 		{
